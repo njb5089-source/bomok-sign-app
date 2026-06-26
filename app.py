@@ -94,15 +94,16 @@ def _open_spreadsheet():
 
 
 def save_to_gsheet(row):
-    """제출 정보를 구글 시트 첫 번째 탭에 한 줄 추가합니다. 설정 전이면 안전하게 실패합니다."""
+    """제출 정보를 '제출현황' 탭에 한 줄 추가합니다. 설정 전이면 안전하게 실패합니다."""
     try:
-        sheet = _open_spreadsheet().sheet1
+        sh = _open_spreadsheet()
+        try:
+            sheet = sh.worksheet("제출현황")
+        except gspread.WorksheetNotFound:
+            sheet = sh.add_worksheet(title="제출현황", rows=200, cols=10)
         # 시트가 비어 있으면 머리글(헤더)을 먼저 만들어 둡니다.
         if not sheet.get_all_values():
-            sheet.append_row(
-                ["제출시각", "아동성명", "보호자성명", "연락처",
-                 "주민번호(마스킹)", "동의여부", "서명"]
-            )
+            sheet.append_row(["제출시각", "안내문 제목", "수집 정보", "동의 여부", "서명"])
         sheet.append_row(row)
         return True, None
     except Exception as e:
@@ -118,10 +119,11 @@ def publish_announcement(data):
         except gspread.WorksheetNotFound:
             ws = sh.add_worksheet(title="발송안내문", rows=10, cols=10)
         ws.clear()
-        ws.append_row(["title", "date", "location", "supplies", "desc", "is_outdoor"])
+        ws.append_row(["title", "date", "location", "supplies", "desc", "is_outdoor", "fields"])
         ws.append_row([
             data["title"], data["date"], data["location"],
             data["supplies"], data["desc"], "Y" if data["is_outdoor"] else "N",
+            data.get("fields", ""),
         ])
         return True, None
     except Exception as e:
@@ -136,10 +138,33 @@ def load_announcement():
         if records:
             rec = records[0]
             rec["is_outdoor"] = (str(rec.get("is_outdoor", "")).strip().upper() == "Y")
+            rec["field_ids"] = [x for x in str(rec.get("fields", "")).split(",") if x]
             return rec
         return None
     except Exception:
         return None
+
+
+# =====================================================================
+# 📋 2-3. 수집 가능한 개인정보 항목 카탈로그
+# =====================================================================
+# always=True 항목은 어떤 동의서든 항상 수집합니다(아동·보호자 식별용).
+# type: text(일반 입력), ssn(주민번호=마스킹 저장), consent(동의 체크)
+PRIVACY_FIELDS = [
+    {"id": "child_name",     "label": "아동 성명",             "type": "text",    "ph": "예: 김민준",        "always": True},
+    {"id": "guardian_name",  "label": "보호자 성명",           "type": "text",    "ph": "예: 김철수",        "always": True},
+    {"id": "guardian_phone", "label": "보호자 연락처",         "type": "text",    "ph": "예: 010-1234-5678", "always": False},
+    {"id": "child_ssn",      "label": "아동 주민등록번호",     "type": "ssn",     "ph": "000000-0000000",    "always": False},
+    {"id": "child_birth",    "label": "아동 생년월일",         "type": "text",    "ph": "예: 2015-03-01",    "always": False},
+    {"id": "address",        "label": "주소",                  "type": "text",    "ph": "예: 서귀포시 ...",  "always": False},
+    {"id": "emergency",      "label": "비상 연락처",           "type": "text",    "ph": "예: 010-...",       "always": False},
+    {"id": "health",         "label": "건강·알레르기 특이사항", "type": "text",    "ph": "예: 땅콩 알레르기",  "always": False},
+    {"id": "portrait",       "label": "초상권(사진·영상) 활용", "type": "consent", "ph": "",                  "always": False},
+]
+FIELDS_BY_ID = {f["id"]: f for f in PRIVACY_FIELDS}
+LABEL_TO_ID = {f["label"]: f["id"] for f in PRIVACY_FIELDS}
+ALWAYS_IDS = [f["id"] for f in PRIVACY_FIELDS if f["always"]]
+OPTIONAL_FIELDS = [f for f in PRIVACY_FIELDS if not f["always"]]
 
 
 # =====================================================================
@@ -174,24 +199,37 @@ if current_user_mode == "parent":
         st.title(f"🌲 {announcement['title']}")
         st.caption("보목지역아동센터 가정통신문")
         st.info(announcement["desc"])
-        show_ssn = announcement["is_outdoor"]
+        field_ids = announcement.get("field_ids") or ALWAYS_IDS
     else:
         st.title("🌲 보목지역아동센터 가정통신문")
         st.caption("보목지역아동센터 가정통신문")
         st.warning("아직 선생님이 확정·발송한 안내문이 없습니다. 잠시 후 다시 확인해 주세요.")
-        show_ssn = True  # 안내문이 없을 땐 기존처럼 모두 표시
+        field_ids = ALWAYS_IDS + ["guardian_phone"]
 
     st.markdown("---")
     st.subheader("📝 동의서 작성 및 제출")
 
-    if show_ssn:
-        st.caption("🤖 야외 활동이라 보험 가입을 위해 아동 주민등록번호를 수집합니다.")
-        child_ssn = st.text_input("아동 주민등록번호 (보험 가입용)", placeholder="000000-0000000")
-    else:
-        child_ssn = ""  # 실내 활동은 주민번호를 수집하지 않습니다.
-    child_name = st.text_input("아동 성명", placeholder="예: 김민준")
-    parent_name = st.text_input("보호자 성명", placeholder="예: 김철수")
-    parent_phone = st.text_input("보호자 연락처", placeholder="예: 010-1234-5678")
+    # 교사가 선택한 항목만 입력란을 자동으로 만들어 줍니다.
+    collected = {}          # 라벨 -> 시트에 저장할 값
+    has_sensitive = False
+    for fid in field_ids:
+        f = FIELDS_BY_ID.get(fid)
+        if not f:
+            continue
+        if f["type"] == "consent":
+            agreed = st.checkbox(f"{f['label']}에 동의합니다", key=f"pf_{fid}")
+            collected[f["label"]] = "동의" if agreed else "미동의"
+        elif f["type"] == "ssn":
+            has_sensitive = True
+            raw = st.text_input(f"{f['label']} (보험 가입용)", placeholder=f["ph"], key=f"pf_{fid}")
+            collected[f["label"]] = mask_ssn(raw)   # 주민번호는 마스킹해서만 저장
+        else:
+            raw = st.text_input(f["label"], placeholder=f.get("ph", ""), key=f"pf_{fid}")
+            collected[f["label"]] = raw
+
+    if has_sensitive:
+        st.caption("🔒 주민등록번호 등 민감정보는 뒷자리를 가린 채(마스킹) 안전하게 저장됩니다.")
+
     st.markdown("### ⚖️ 법적 고지 및 개인정보 수집 동의")
     st.caption("본 동의서의 전자서명은 「전자문서 및 전자거래 기본법」 제4조 제1항에 의거하여 친필 서명과 동일한 법적 효력을 가집니다.")
     agree = st.checkbox("위 내용을 모두 확인하였으며 동의합니다.")
@@ -214,17 +252,19 @@ if current_user_mode == "parent":
                 canvas_result.json_data is not None
                 and len(canvas_result.json_data.get("objects", [])) > 0
             )
-            if not child_name or not parent_name:
+            child_name_val = st.session_state.get("pf_child_name", "")
+            guardian_name_val = st.session_state.get("pf_guardian_name", "")
+            if not child_name_val or not guardian_name_val:
                 st.error("⚠️ 아동 성명과 보호자 성명을 꼭 입력해 주세요.")
             elif not has_sign:
                 st.error("⚠️ 서명란에 직접 서명을 해주세요.")
             else:
+                # 수집한 항목들을 읽기 쉬운 한 줄로 정리해서 저장
+                info_str = " | ".join(f"{label}: {val}" for label, val in collected.items())
                 row = [
                     datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    child_name,
-                    parent_name,
-                    parent_phone,
-                    mask_ssn(child_ssn) if show_ssn else "미수집(실내활동)",  # 주민번호는 마스킹해서만 저장
+                    announcement["title"] if announcement else "(안내문 없음)",
+                    info_str,
                     "동의함",
                     "서명 완료",
                 ]
@@ -269,7 +309,22 @@ else:
     # 입력칸에 직접 쓴 내용도 메모리에 저장 → 미리보기/수정 오가도 글이 사라지지 않음
     st.session_state.ai_generated_desc = desc
     is_outdoor = any(keyword in location for keyword in ["섬", "항", "바다", "산", "야외", "캠프", "공원", "체험"])
-    
+
+    st.markdown("---")
+    st.write("### 🧩 3. 받을 개인정보 항목 선택")
+    st.caption("이 동의서에서 학부모에게 받을 정보를 고르세요. (아동 성명·보호자 성명은 항상 포함됩니다)")
+    if "field_labels" not in st.session_state:
+        st.session_state.field_labels = ["보호자 연락처"]   # 기본 추천
+    if is_outdoor and "아동 주민등록번호" not in st.session_state.field_labels:
+        st.info("🤖 야외 활동으로 감지됐어요. 보험 가입이 필요하면 '아동 주민등록번호'를 추가하세요.")
+    selected_labels = st.multiselect(
+        "받을 정보 선택",
+        options=[f["label"] for f in OPTIONAL_FIELDS],
+        key="field_labels",
+        disabled=is_disabled,
+    )
+    selected_ids = ALWAYS_IDS + [LABEL_TO_ID[lbl] for lbl in selected_labels]
+
     if not st.session_state.preview_mode:
         st.markdown("---")
         if st.button("🔍 학부모용 서식 시안 미리보기"):
@@ -278,21 +333,25 @@ else:
 
     if st.session_state.preview_mode:
         st.markdown("---")
-        st.markdown("### 📱 3. 학부모용 최종 발송 시안 확인")
+        st.markdown("### 📱 4. 학부모용 최종 발송 시안 확인")
         st.markdown('<div class="preview-container">', unsafe_allow_html=True)
         st.markdown(f"### 🌲 {title}")
         st.caption("보목지역아동센터 가정통신문")
         st.info(desc)
+        st.markdown("##### 📋 학부모가 입력하게 될 항목")
+        # 교사가 선택한 항목 그대로 미리보기에 표시
+        for fid in selected_ids:
+            f = FIELDS_BY_ID.get(fid)
+            if not f:
+                continue
+            if f["type"] == "consent":
+                st.checkbox(f"[학부모 화면 예시] {f['label']}에 동의합니다", disabled=True, key=f"pv_{fid}")
+            else:
+                tag = " (보험 가입용·마스킹 저장)" if f["type"] == "ssn" else ""
+                st.text_input(f"[학부모 화면 예시] {f['label']}{tag}",
+                              placeholder=f.get("ph", ""), disabled=True, key=f"pv_{fid}")
         st.markdown("##### ⚖️ 법적 고지 및 개인정보 수집 동의")
         st.caption("본 동의서의 전자서명은 친필 서명과 동일한 법적 효력을 가집니다.")
-        
-        if is_outdoor:
-            st.warning("🤖 AI 컴플라이언스 엔진 감지: 야외 활동 서식으로 판정되어 보험 가입용 [주민등록번호] 입력란이 활성화됩니다.")
-            st.text_input("[학부모 화면 예시] 아동 주민등록번호", "000000-0000000", disabled=True, key="p_ssn")
-            
-        st.text_input("[학부모 화면 예시] 아동 성명", placeholder="예: 김민준", disabled=True, key="p_name")
-        st.text_input("[학부모 화면 예시] 보호자 성명", placeholder="예: 김철수", disabled=True, key="p_pname")
-        st.text_input("[학부모 화면 예시] 보호자 연락처", placeholder="예: 010-1234-5678", disabled=True, key="p_phone")
         st.checkbox("[학부모 화면 예시] 위 내용을 모두 확인하였으며 동의합니다.", disabled=True, key="p_agree")
         st.markdown('</div>', unsafe_allow_html=True)
         st.markdown("---")
@@ -308,6 +367,7 @@ else:
                 ok, err = publish_announcement({
                     "title": title, "date": date, "location": location,
                     "supplies": supplies, "desc": desc, "is_outdoor": is_outdoor,
+                    "fields": ",".join(selected_ids),
                 })
                 st.session_state.publish_error = None if ok else err
                 st.session_state.generated = True
