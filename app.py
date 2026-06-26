@@ -498,10 +498,13 @@ st.markdown("""
         background-color: #4F46E5; color: white; width: 100%; padding: 12px;
         border-radius: 8px; border: none; font-weight: bold; font-size: 16px;
     }
-    /* 분할 입력(연락처·생년월일 등) 칸 사이 간격을 좁혀 좁은 폰에서도 안 잘리게 */
-    div[data-testid="stHorizontalBlock"] { gap: 0.35rem; }
-    /* 입력칸이 칸 폭을 넘지 않도록 */
-    div[data-testid="stTextInput"] input { min-width: 0; }
+    /* 분할 입력(연락처·생년월일 등)을 폰에서도 세로로 쌓지 않고 한 줄로 유지 */
+    div[data-testid="stHorizontalBlock"] { gap: 0.3rem; flex-wrap: nowrap !important; }
+    div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] {
+        min-width: 0 !important; flex-shrink: 1 !important;
+    }
+    /* 좁은 칸에서도 숫자가 들어가도록 입력칸 좌우 패딩 축소 */
+    div[data-testid="stTextInput"] input { min-width: 0; padding-left: 6px; padding-right: 6px; }
     .preview-container, .popup-box { max-width: 100%; box-sizing: border-box; overflow-x: hidden; }
     .preview-container {
         background-color: #F9FAFB; padding: 16px; border-radius: 16px;
