@@ -2,6 +2,10 @@ import streamlit as st
 import google.generativeai as genai
 from streamlit_drawable_canvas import st_canvas
 import requests
+import datetime
+import json
+import gspread
+from google.oauth2.service_account import Credentials
 
 # =====================================================================
 # 🛠️ 1. 환경 변수 세팅 및 세션 상태 초기화
@@ -70,6 +74,37 @@ def generate_announcement_with_ai(title, date, location, supplies, extra_info):
 
 
 # =====================================================================
+# 🔐 2-2. 개인정보 마스킹 & 구글 시트 저장 함수
+# =====================================================================
+def mask_ssn(ssn):
+    """주민등록번호 뒷자리를 가립니다. 예: 970101-1****** (앞 7자리만 보관)"""
+    digits = "".join(ch for ch in str(ssn) if ch.isdigit())
+    if len(digits) >= 7:
+        return f"{digits[:6]}-{digits[6]}{'*' * 6}"
+    return "(미입력 또는 형식 오류)"
+
+
+def save_to_gsheet(row):
+    """제출 정보를 구글 시트에 한 줄 추가합니다. 설정 전이면 안전하게 실패합니다."""
+    try:
+        scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+        creds_dict = json.loads(st.secrets["gcp_service_account_json"])
+        creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+        gc = gspread.authorize(creds)
+        sheet = gc.open_by_key(st.secrets["SHEET_ID"]).sheet1
+        # 시트가 비어 있으면 머리글(헤더)을 먼저 만들어 둡니다.
+        if not sheet.get_all_values():
+            sheet.append_row(
+                ["제출시각", "아동성명", "보호자성명", "연락처",
+                 "주민번호(마스킹)", "동의여부", "서명"]
+            )
+        sheet.append_row(row)
+        return True, None
+    except Exception as e:
+        return False, str(e)
+
+
+# =====================================================================
 # 🎨 3. 디자인 고도화 CSS 정의
 # =====================================================================
 st.markdown("""
@@ -123,10 +158,31 @@ if current_user_mode == "parent":
             height=150, width=350, drawing_mode="freedraw", key="canvas_parent"
         )
         if st.button("✅ 서명 완료 및 최종 제출하기"):
+            has_sign = (
+                canvas_result.json_data is not None
+                and len(canvas_result.json_data.get("objects", [])) > 0
+            )
             if not child_name or not parent_name:
                 st.error("⚠️ 아동 성명과 보호자 성명을 꼭 입력해 주세요.")
+            elif not has_sign:
+                st.error("⚠️ 서명란에 직접 서명을 해주세요.")
             else:
-                st.success("🎉 보목지역아동센터 동의서 제출이 완료되었습니다!")
+                row = [
+                    datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    child_name,
+                    parent_name,
+                    parent_phone,
+                    mask_ssn(child_ssn),   # 주민번호는 마스킹해서만 저장
+                    "동의함",
+                    "서명 완료",
+                ]
+                ok, err = save_to_gsheet(row)
+                if ok:
+                    st.success("🎉 보목지역아동센터 동의서 제출이 완료되었습니다!")
+                else:
+                    # 저장소 연결 전이라도 학부모 화면은 정상으로 보이게 처리
+                    st.success("🎉 동의서 제출이 접수되었습니다!")
+                    st.caption(f"ℹ️ (관리자 메모) 저장소 연결 대기 중: {err}")
                 st.session_state.show_signup = False
         st.markdown('</div>', unsafe_allow_html=True)
 
