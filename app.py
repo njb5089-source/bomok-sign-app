@@ -9,7 +9,7 @@ from streamlit_drawable_canvas import st_canvas
 # 만약 깃허브/Streamlit Cloud에 배포할 때는 이 부분을 주석 처리하고 st.secrets를 사용합니다.
 GOOGLE_API_KEY = "AQ.Ab8RN6LWFtbKuPRvm2-5muYfI__7wPViXqjcb42scmtrmLLBrw"
 
-if GOOGLE_API_KEY and GOOGLE_API_KEY != "아까_복사한_실제_API_키를_여기에_넣으세요":
+if GOOGLE_API_KEY and GOOGLE_API_KEY != "AQ.Ab8RN6LWFtbKuPRvm2-5muYfI__7wPViXqjcb42scmtrmLLBrw":
     genai.configure(api_key=GOOGLE_API_KEY)
 elif "GEMINI_API_KEY" in st.secrets:
     # 깃허브 배포용 안전한 키 불러오기 상자
