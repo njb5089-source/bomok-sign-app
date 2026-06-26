@@ -266,6 +266,8 @@ else:
                 st.rerun()
     
     desc = st.text_area("상세 안내 문구", value=st.session_state.ai_generated_desc, height=250, disabled=is_disabled)
+    # 입력칸에 직접 쓴 내용도 메모리에 저장 → 미리보기/수정 오가도 글이 사라지지 않음
+    st.session_state.ai_generated_desc = desc
     is_outdoor = any(keyword in location for keyword in ["섬", "항", "바다", "산", "야외", "캠프", "공원", "체험"])
     
     if not st.session_state.preview_mode:
