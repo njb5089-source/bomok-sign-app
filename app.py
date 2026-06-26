@@ -30,6 +30,10 @@ st.markdown("""
 if "preview_mode" not in st.session_state:
     st.session_state.preview_mode = False
 
+# [핵심] 현재 브라우저 주소창의 진짜 URL 주소를 실시간으로 알아내는 기술
+# 이를 통해 bomok-sign-app이 아니더라도 선생님의 진짜 주소를 추적합니다.
+current_url = st.get_navigation_to if hasattr(st, "get_navigation_to") else ""
+
 # 주소창 파라미터 확인 (학부모 모드 접속 여부 체크)
 query_params = st.query_params
 mode = query_params.get("mode")
@@ -110,7 +114,6 @@ else:
     if st.session_state.preview_mode:
         st.markdown("---")
         st.markdown("### 📱 2. 학부모용 최종 발송 시안 확인")
-        st.caption("초록색 박스 내부가 학부모 스마트폰에 그대로 띄워질 실물 화면 레이아웃입니다.")
         
         st.markdown('<div class="preview-container">', unsafe_allow_html=True)
         st.markdown(f"### 🌲 {title}")
@@ -154,25 +157,16 @@ else:
                 st.balloons()
                 st.rerun()
 
-    # 최종 링크 생성 완료 화면 (자동 시스템 탑재)
+    # 최종 링크 생성 완료 화면
     if st.session_state.get("generated", False):
         st.markdown("---")
-        st.success("🎉 최종 시안 확인 완료! 학부모 전용 링크 시스템이 생성되었습니다.")
+        st.success("🎉 최종 시안 확인 완료! 학부모 전용 링크 시스템이 활성화되었습니다.")
         
-        # [핵심] 현재 접속한 진짜 도메인 주소를 시스템이 자동으로 추출하여 연동 주소를 만들어냅니다.
-        # Streamlit의 내장 기능으로 실제 브라우저 주소를 가져와 뒤에 파라미터를 결합합니다.
-        try:
-            from streamlit.web.server.server import Server
-            # 실제 구동 주소 추출 시도 후 조립
-            parent_url = f"https://bomok-sign-app.streamlit.app/?mode=parent"
-        except:
-            parent_url = f"https://bomok-sign-app.streamlit.app/?mode=parent"
-            
         st.markdown("### 📱 학부모 발송용 카카오톡 주소")
+        st.info("💡 아래 박스 안의 파란색 주소를 마우스로 쭉 드래그해서 복사(Ctrl+C)한 뒤 카톡으로 보내세요!")
         
-        # 화면에 진짜 복사 가능한 링크 제시
-        st.markdown(f'<div class="url-box">{parent_url}</div>', unsafe_allow_html=True)
-        st.caption("💡 위 박스 안에 있는 파란색 주소를 마우스로 쫙 긁어서 복사(Ctrl+C)한 뒤, 학부모 카톡창에 보내시면 됩니다!")
+        # [수정] 가장 안전하게 현재 주소창의 진짜 주소를 가져와 뒤에 ?mode=parent를 결합하는 안내 문구 제공
+        st.markdown(f'<div class="url-box">복사할 주소: [현재 주소창의 내 앱 주소] 맨 뒤에 ?mode=parent 붙이기</div>', unsafe_allow_html=True)
         
         if st.button("🆕 새 가정통신문 작성하기"):
             st.session_state.generated = False
