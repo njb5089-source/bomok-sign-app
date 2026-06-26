@@ -52,13 +52,13 @@ def generate_announcement_with_ai(title, info_items,
             purpose_text = (purpose or "").strip()
             if purpose_text:
                 purpose_rule = (
-                    "수집·이용 목적은 반드시 아래 담당자가 적은 내용을 그대로 사용하고, "
-                    f"네가 임의로 추측하거나 지어내지 마:\n        \"{purpose_text}\""
+                    "각 항목의 수집·이용 목적과 보유기간은 반드시 아래 담당자가 적은 내용을 그대로 사용하고, "
+                    f"네가 임의로 추측하거나 지어내지 마. 항목별로 목적과 보유기간을 명확히 안내해줘:\n        \"{purpose_text}\""
                 )
             else:
                 purpose_rule = (
-                    "수집·이용 목적이 입력되지 않았으니 절대 임의로 지어내지 말고, "
-                    "'[수집·이용 목적: 담당 선생님이 별도 안내 예정]'이라고 그대로 표시할 것."
+                    "수집·이용 목적/보유기간이 입력되지 않았으니 절대 임의로 지어내지 말고, "
+                    "'[수집·이용 목적 및 보유기간: 담당 선생님이 별도 안내 예정]'이라고 그대로 표시할 것."
                 )
             privacy_block = f"""
         [이번 동의서에서 수집하는 개인정보 항목]
@@ -469,6 +469,15 @@ PURPOSE_OPTIONS = {
     "portrait":       ["활동 사진·영상의 홍보·기록 활용", "센터 SNS·소식지 게시"],
 }
 
+# 항목별 '보유 기간' 자주 쓰는 보기 (드롭다운). 마지막에 '기타' 자동 추가됨
+RETENTION_OPTIONS = [
+    "프로그램 종료 후 1년",
+    "수집일로부터 1년",
+    "동의 철회 또는 목적 달성 시까지",
+    "관계 법령에 따른 보존기간",
+    "프로그램 종료 시 즉시 파기",
+]
+
 # 제출현황 시트의 고정 머리글: 모든 항목을 각각의 열로 둠(안 받은 항목은 빈칸)
 SUBMISSION_HEADER = (
     ["제출시각", "안내문 제목"]
@@ -656,8 +665,9 @@ else:
     if "target_categories" not in st.session_state:
         st.session_state.target_categories = ["초등 저학년"]
     target_cats = st.multiselect(
-        "참여 대상 (여러 그룹 선택 가능 · 아래 제출 확인과 연동)",
-        ["초등 저학년", "초등 고학년", "중등부"],
+        "참여 대상 (여러 그룹·학년 선택 가능 · 아래 제출 확인과 연동)",
+        ["초등 저학년", "초등 고학년", "중등부",
+         "초1", "초2", "초3", "초4", "초5", "초6", "중1", "중2", "중3"],
         key="target_categories", disabled=is_disabled,
     )
 
@@ -811,25 +821,36 @@ else:
             "(아래 '수집·이용 목적'에 직접 적어주세요. 정식 버전에서는 암호화 보관 필요)"
         )
 
-    # 항목마다 '수집·이용 목적'을 하나씩 지정 → AI가 추측하지 않고 이 내용을 그대로 사용
+    # 항목마다 '수집·이용 목적'과 '보유 기간'을 지정 → AI가 그대로 사용
+    def _pick(label, options, key):
+        """드롭다운 + '기타' 직접 입력을 한 번에 처리"""
+        choice = st.selectbox(label, options + ["기타(직접 입력)"], key=key, disabled=is_disabled)
+        if choice == "기타(직접 입력)":
+            return st.text_input(f"　└ {label} 직접 입력", key=f"{key}_etc", disabled=is_disabled).strip()
+        return choice
+
     purpose_parts = []
     if selected_labels or custom_labels:
-        st.markdown("**📌 각 항목의 수집·이용 목적** (자주 쓰는 목적은 선택, 특수하면 '기타' 직접 입력)")
+        st.markdown("**📌 각 항목의 수집·이용 목적 & 보유 기간** (자주 쓰는 값 선택, 특수하면 '기타')")
         for lbl in selected_labels:
             fid = LABEL_TO_ID[lbl]
-            opts = PURPOSE_OPTIONS.get(fid, []) + ["기타(직접 입력)"]
-            choice = st.selectbox(f"· {lbl}", opts, key=f"purpose_{fid}", disabled=is_disabled)
-            if choice == "기타(직접 입력)":
-                etc = st.text_input(f"　└ {lbl} 목적 직접 입력", key=f"purpose_etc_{fid}", disabled=is_disabled)
-                val = etc.strip()
-            else:
-                val = choice
-            if val:
-                purpose_parts.append(f"{lbl}: {val}")
+            st.markdown(f"**· {lbl}**")
+            pc1, pc2 = st.columns(2)
+            with pc1:
+                pval = _pick("수집·이용 목적", PURPOSE_OPTIONS.get(fid, []), f"purpose_{fid}")
+            with pc2:
+                rval = _pick("보유 기간", RETENTION_OPTIONS, f"ret_{fid}")
+            if pval or rval:
+                purpose_parts.append(f"{lbl} — 목적: {pval or '미입력'} / 보유기간: {rval or '미입력'}")
         for i, lbl in enumerate(custom_labels):
-            etc = st.text_input(f"· {lbl} 목적 직접 입력", key=f"purpose_custom_{i}", disabled=is_disabled)
-            if etc.strip():
-                purpose_parts.append(f"{lbl}: {etc.strip()}")
+            st.markdown(f"**· {lbl}**")
+            cc1, cc2 = st.columns(2)
+            with cc1:
+                pval = st.text_input("수집·이용 목적", key=f"purpose_custom_{i}", disabled=is_disabled).strip()
+            with cc2:
+                rval = _pick("보유 기간", RETENTION_OPTIONS, f"ret_custom_{i}")
+            if pval or rval:
+                purpose_parts.append(f"{lbl} — 목적: {pval or '미입력'} / 보유기간: {rval or '미입력'}")
     purpose = " / ".join(purpose_parts)
 
     st.markdown("---")
@@ -1035,7 +1056,8 @@ else:
         qc1, qc2 = st.columns(2)
         if qc1.button("✅ 참여 대상 그룹 자동 체크", use_container_width=True):
             for r in roster:
-                if grade_category(r.get("학년", "")) in target_cats:
+                g = str(r.get("학년", ""))
+                if grade_category(g) in target_cats or g in target_cats:
                     st.session_state[f"sel_{str(r.get('대상ID'))}"] = True
             st.rerun()
         if qc2.button("전체 해제", key="quick_clear", use_container_width=True):
