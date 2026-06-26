@@ -366,9 +366,10 @@ def publish_announcement(data):
         except gspread.WorksheetNotFound:
             ws = sh.add_worksheet(title="발송안내문", rows=10, cols=10)
         ws.clear()
-        ws.append_row(["title", "desc", "is_outdoor", "fields", "custom_fields", "collection"])
+        ws.append_row(["title", "desc", "is_outdoor", "issue_date", "fields", "custom_fields", "collection"])
         ws.append_row([
             data["title"], data["desc"], "Y" if data["is_outdoor"] else "N",
+            data.get("issue_date", ""),
             data.get("fields", ""), data.get("custom_fields", ""), data.get("collection", ""),
         ])
         return True, None
@@ -587,6 +588,8 @@ if current_user_mode == "parent":
     # 개인정보 수집·이용 내역 표 (선택된 항목만 · 보유기간은 법령 기준 고정)
     if announcement and announcement.get("collection"):
         st.markdown("**📑 개인정보 수집·이용 내역**")
+        if announcement.get("issue_date"):
+            st.caption(f"📅 발행일(보유기간 기산일): {announcement['issue_date']}")
         st.table([
             {"수집 항목": c.get("item", ""), "이용 목적": c.get("purpose", ""), "보유 기간": c.get("retention", "")}
             for c in announcement["collection"]
@@ -654,6 +657,8 @@ else:
     if "info_title" not in st.session_state:
         st.session_state.info_title = "섶섬 생태 탐방 및 자리돔 낚시 체험"
     title = st.text_input("제목", key="info_title", disabled=is_disabled)
+    issue_date = st.date_input("발행일 (개인정보 보유기간 기산일)", disabled=is_disabled)
+    issue_str = issue_date.strftime("%Y-%m-%d") if issue_date else ""
 
     # 참여 대상 — 중복 선택 가능. 아래 '참여 대상 선택/제출 확인'과 연동됩니다.
     if "target_categories" not in st.session_state:
@@ -711,6 +716,8 @@ else:
             info_items_data.append((lbl, val))
     if target_cats:
         info_items_data.insert(0, ("참여 대상", ", ".join(target_cats)))
+    if issue_str:
+        info_items_data.insert(0, ("발행일", issue_str))
 
     # 야외/수상/숙박 자동 감지는 모든 입력 내용에서 키워드를 찾습니다.
     all_info_text = " ".join(v for _, v in info_items_data)
@@ -900,6 +907,8 @@ else:
                 st.markdown(f"- {item}")
         if collection_details:
             st.markdown("**📑 개인정보 수집·이용 내역**")
+            if issue_str:
+                st.caption(f"📅 발행일(보유기간 기산일): {issue_str}")
             st.table([
                 {"수집 항목": c["item"], "이용 목적": c["purpose"], "보유 기간": c["retention"]}
                 for c in collection_details
@@ -913,6 +922,7 @@ else:
             # 확정한 안내문을 시트에 발행 → 학부모 화면이 읽어가게 함
             ok, err = publish_announcement({
                 "title": title, "desc": desc, "is_outdoor": is_outdoor,
+                "issue_date": issue_str,
                 "fields": ",".join(selected_ids),
                 "custom_fields": json.dumps(custom_questions_defs, ensure_ascii=False),
                 "collection": json.dumps(collection_details, ensure_ascii=False),
