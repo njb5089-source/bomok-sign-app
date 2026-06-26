@@ -29,8 +29,8 @@ if "ai_generated_desc" not in st.session_state:
 # =====================================================================
 def generate_announcement_with_ai(title, date, location, supplies, extra_info):
     try:
-        # 🌟 404 에러를 방지하기 위해 'models/' 경로를 명시하여 모델을 생성합니다.
-        model = genai.GenerativeModel("models/gemini-1.5-flash")
+        # 🌟 'gemini-1.5-flash' 대신 가장 호환성이 높은 'gemini-pro'를 사용합니다.
+        model = genai.GenerativeModel("gemini-pro")
 
         prompt = f"""
         너는 보목지역아동센터의 따뜻하고 정중한 사회복지사야. 
