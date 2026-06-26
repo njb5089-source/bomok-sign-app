@@ -13,14 +13,14 @@ if API_KEY:
 else:
     st.error("⚠️ Streamlit Secrets에 'GEMINI_API_KEY'가 설정되지 않았습니다.")
     
-# 세션 상태 변수 초기화 (AI 본문이 날아가지 않도록 확실하게 유지)
+# 세션 상태 변수 초기화
 if "preview_mode" not in st.session_state: st.session_state.preview_mode = False
 if "show_signup" not in st.session_state: st.session_state.show_signup = False
 if "generated" not in st.session_state: st.session_state.generated = False
 if "ai_generated_desc" not in st.session_state:
     st.session_state.ai_generated_desc = "위 필수 정보를 입력한 후 버튼을 누르면 AI가 본문을 자동으로 작성합니다."
 
-# 주소창 파라미터(?mode=parent)에 따라 화면을 분리하는 원래 방식 유지
+# 주소창 파라미터(?mode=parent)에 따라 화면을 분리하는 원래 방식
 query_params = st.query_params
 if query_params.get("mode") == "parent":
     current_user_mode = "parent"
@@ -98,7 +98,6 @@ if current_user_mode == "parent":
     st.title("🌲 보목지역아동센터 가정통신문")
     st.subheader("모바일 확인 및 동의서 제출")
     
-    # 교사가 세팅해 둔 AI 본문이 학부모 화면에 정상 출력되도록 고정
     st.info(st.session_state.ai_generated_desc)
     
     st.markdown("### ⚖️ 법적 고지 및 개인정보 수집 동의")
@@ -158,7 +157,6 @@ else:
                 st.session_state.ai_generated_desc = generated_text
                 st.rerun()
     
-    # 입력 및 재생성된 AI 본문이 텍스트 상자에 실시간으로 잘 들어가도록 연동
     desc = st.text_area("상세 안내 문구", value=st.session_state.ai_generated_desc, height=250, disabled=is_disabled)
     is_outdoor = any(keyword in location for keyword in ["섬", "항", "바다", "산", "야외", "캠프", "공원", "체험"])
     
@@ -183,4 +181,35 @@ else:
             st.text_input("[학부모 화면 예시] 아동 주민등록번호", "000000-0000000", disabled=True, key="p_ssn")
             
         st.text_input("[학부모 화면 예시] 아동 성명", placeholder="예: 김민준", disabled=True, key="p_name")
-        st.text_input("[학부모 화면 예시] 보호자 성명", placeholder="예: 김철수", disabled=True
+        st.text_input("[학부모 화면 예시] 보호자 성명", placeholder="예: 김철수", disabled=True, key="p_pname")
+        st.text_input("[학부모 화면 예시] 보호자 연락처", placeholder="예: 010-1234-5678", disabled=True, key="p_phone")
+        st.checkbox("[학부모 화면 예시] 위 내용을 모두 확인하였으며 동의합니다.", disabled=True, key="p_agree")
+        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown("---")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("✏️ 오타 수정하기"):
+                st.session_state.preview_mode = False
+                st.rerun()
+        with col2:
+            if st.button("🚀 시안 확정 및 발송 링크 생성"):
+                st.session_state.generated = True
+                st.session_state.preview_mode = False
+                st.balloons()
+                st.rerun()
+
+    if st.session_state.get("generated", False):
+        st.markdown("---")
+        st.success("🎉 최종 시안 확인 완료! 학부모 전용 링크 시스템이 활성화되었습니다.")
+        st.markdown("### 📱 학부모 발송용 카카오톡 주소")
+        
+        parent_link = "https://bomok-sign-app-ss6ipgcadtqcwembfgfskz.streamlit.app/?mode=parent"
+        
+        st.info("💡 아래 상자 오른쪽 끝의 복사 버튼을 누른 뒤, 카카오톡에 전송해 보세요!")
+        st.code(parent_link, language="text")
+        
+        if st.button("🆕 새 가정통신문 작성하기"):
+            st.session_state.generated = False
+            st.session_state.ai_generated_desc = "위 필수 정보를 입력한 후 버튼을 누르면 AI가 본문을 자동으로 작성합니다."
+            st.rerun()
