@@ -133,7 +133,7 @@ def _sep(text):
     """입력칸 사이의 구분 기호/단위(- , 년, 월 등)를 칸과 같은 높이로 세로 중앙정렬"""
     st.markdown(
         "<div style='display:flex;align-items:center;justify-content:center;"
-        f"height:38px;margin:0;'>{text}</div>",
+        f"height:40px;margin:0;'>{text}</div>",
         unsafe_allow_html=True,
     )
 
@@ -141,7 +141,7 @@ def _sep(text):
 def _input_phone(label, key_prefix, disabled=False):
     """전화번호: [010]-[1234]-[5678] 3칸"""
     st.markdown(f"**{label}**")
-    c1, d1, c2, d2, c3 = st.columns([4, 1, 5, 1, 5], vertical_alignment="center")
+    c1, d1, c2, d2, c3 = st.columns([4, 1, 5, 1, 5], vertical_alignment="top")
     p1 = c1.text_input(label, key=f"{key_prefix}_1", max_chars=3, placeholder="010",
                        label_visibility="collapsed", disabled=disabled)
     with d1:
@@ -159,7 +159,7 @@ def _input_phone(label, key_prefix, disabled=False):
 def _input_birth(label, key_prefix, disabled=False):
     """생년월일: [2015]년 [03]월 [01]일 3칸"""
     st.markdown(f"**{label}**")
-    c1, l1, c2, l2, c3, l3 = st.columns([4, 1, 3, 1, 3, 1], vertical_alignment="center")
+    c1, l1, c2, l2, c3, l3 = st.columns([4, 1, 3, 1, 3, 1], vertical_alignment="top")
     y = c1.text_input(label, key=f"{key_prefix}_y", max_chars=4, placeholder="2015",
                       label_visibility="collapsed", disabled=disabled)
     with l1:
@@ -179,7 +179,7 @@ def _input_birth(label, key_prefix, disabled=False):
 def _input_ssn(label, key_prefix, disabled=False):
     """주민등록번호: [앞 6자리]-[뒤 7자리] 2칸 (저장 시 마스킹)"""
     st.markdown(f"**{label}**")
-    c1, d1, c2 = st.columns([5, 1, 6], vertical_alignment="center")
+    c1, d1, c2 = st.columns([5, 1, 6], vertical_alignment="top")
     front = c1.text_input(label, key=f"{key_prefix}_f", max_chars=6, placeholder="앞 6자리",
                           label_visibility="collapsed", disabled=disabled)
     with d1:
@@ -192,7 +192,7 @@ def _input_ssn(label, key_prefix, disabled=False):
 def _input_bank(label, key_prefix, disabled=False):
     """환불 계좌번호: [은행명]은행 [계좌번호] (저장 시 계좌번호 마스킹)"""
     st.markdown(f"**{label}**")
-    c1, l1, c2 = st.columns([3, 1, 6], vertical_alignment="center")
+    c1, l1, c2 = st.columns([3, 1, 6], vertical_alignment="top")
     bank = c1.text_input(label, key=f"{key_prefix}_bank", placeholder="예: 농협",
                          label_visibility="collapsed", disabled=disabled)
     with l1:
@@ -211,7 +211,7 @@ def _input_bank(label, key_prefix, disabled=False):
 def _input_school(label, key_prefix, disabled=False):
     """소속 학교·학년: [보목초등]학교 [3]학년"""
     st.markdown(f"**{label}**")
-    c1, l1, c2, l2 = st.columns([5, 1, 3, 1], vertical_alignment="center")
+    c1, l1, c2, l2 = st.columns([5, 1, 3, 1], vertical_alignment="top")
     sch = c1.text_input(label, key=f"{key_prefix}_s", placeholder="예: 보목초등",
                         label_visibility="collapsed", disabled=disabled)
     with l1:
