@@ -245,28 +245,20 @@ else:
                 st.balloons()
                 st.rerun()
 
-  # =====================================================================
-    # 🎉 4. 최종 링크 생성 완료 화면 (Streamlit 공식 복사 기능 적용 버전)
+ # =====================================================================
+    # 🎉 4. 최종 링크 생성 완료 화면 (학부모 전용 URL 고정 버전)
     # =====================================================================
     if st.session_state.get("generated", False):
         st.markdown("---")
         st.success("🎉 최종 시안 확인 완료! 학부모 전용 링크 시스템이 활성화되었습니다.")
         st.markdown("### 📱 학부모 발송용 카카오톡 주소")
         
-        # 학부모 모드로 접속할 수 있는 최종 완성 주소입니다.
+        # 🌟 관리자 페이지 주소와 절대 꼬이지 않도록 순수 학부모용 앱 주소를 확실하게 고정합니다.
         parent_link = "https://bomok-sign-app.streamlit.app/?mode=parent"
         
-        # 🎨 1. 시각적으로 주소를 보여주는 세련된 박스
-        st.markdown(
-            f'<div class="url-box" style="font-size: 15px; color: #1E40AF; text-align: center; '
-            f'padding: 12px; border-radius: 8px; background-color: #EFF6FF; border: 2px dashed #3B82F6; '
-            f'font-weight: bold; margin-bottom: 15px; word-break: break-all;">'
-            f'{parent_link}</div>', 
-            unsafe_allow_html=True
-        )
+        st.info("💡 아래 상자 오른쪽 끝의 복사 버튼을 누른 뒤, 카카오톡에 붙여넣기(Ctrl+V) 하세요!")
         
-        # 📋 2. [핵심 변경] 보안 에러 없이 무조건 복사되는 Streamlit 공식 코드 블록 버튼
-        st.info("💡 아래 우측의 복사 버튼(상자 모양 아이콘)을 누르면 주소가 즉시 복사됩니다!")
+        # 📋 마우스 올리면 우측에 복사 버튼이 생기는 표준 코드 상자입니다.
         st.code(parent_link, language="text")
         
         st.markdown("<br>", unsafe_allow_html=True)
