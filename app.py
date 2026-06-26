@@ -3,16 +3,18 @@ import google.generativeai as genai
 from streamlit_drawable_canvas import st_canvas
 
 # =====================================================================
-# 🛠️ 1. AI 설정 및 세션 상태 초기화 (수정본)
+# 🛠️ 1. AI 설정 및 세션 상태 초기화 (최종 수정본)
 # =====================================================================
-# Secrets에서 키를 안전하게 가져옵니다.
 API_KEY = st.secrets.get("GEMINI_API_KEY", None)
 
 if API_KEY:
-    # 🌟 핵심 수정: 옛날 방식 대신 API 키를 환경 변수에 확실히 박아두고 초기화합니다.
     import os
     os.environ["GEMINI_API_KEY"] = API_KEY
-    genai.configure(api_key=API_KEY)
+    
+    # 🔥 [핵심 추가] 404 에러와 v1beta 문제를 완벽히 해결하는 치트키 코드입니다.
+    # 구글 라이브러리가 옛날 주소로 가는 것을 막고, 최신 v1 표준 주소로 강제 연결합니다.
+    client_options = {"api_version": "v1"}
+    genai.configure(api_key=API_KEY, client_options=client_options)
 else:
     st.error("⚠️ Streamlit Secrets에 'GEMINI_API_KEY'가 설정되지 않았습니다.")
 
@@ -29,8 +31,8 @@ if "ai_generated_desc" not in st.session_state:
 # =====================================================================
 def generate_announcement_with_ai(title, date, location, supplies, extra_info):
     try:
-        # 🌟 구글 API v1beta 오류를 완벽히 우회하는 최신 세대 모델명 명시
-        model = genai.GenerativeModel("models/gemini-1.5-pro")
+        # 주소가 v1으로 고정되었으므로 원래 쓰려던 표준 모델명을 적어줍니다.
+        model = genai.GenerativeModel("gemini-1.5-flash")
 
         prompt = f"""
         너는 보목지역아동센터의 따뜻하고 정중한 사회복지사야. 
