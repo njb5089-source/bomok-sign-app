@@ -23,7 +23,7 @@ if "ai_generated_desc" not in st.session_state:
 
 
 # =====================================================================
-# 🤖 2. AI 본문 자동 작성 함수 정의 (API 다이렉트 통신 우회 방식)
+# 🤖 2. AI 본문 자동 작성 함수 정의 (AQ. 키 헤더 인증 방식)
 # =====================================================================
 def generate_announcement_with_ai(title, date, location, supplies, extra_info):
     try:
@@ -31,8 +31,8 @@ def generate_announcement_with_ai(title, date, location, supplies, extra_info):
         if not api_key:
             return "❌ AI 생성 중 오류가 발생했습니다: Streamlit Secrets에 API 키가 없습니다."
 
-        # 🌟 라이브러리 내부의 v1beta 고집 주소를 강제 무시하고, 구글 최신 v1 표준 주소로 직접 데이터를 던집니다.
-        url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={api_key}"
+        # 🌟 주소 뒤의 ?key= 부분을 완전히 지우고 깔끔한 순수 주소만 남깁니다.
+        url = "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent"
         
         prompt = f"""
         너는 보목지역아동센터의 따뜻하고 정중한 사회복지사야. 
@@ -48,7 +48,12 @@ def generate_announcement_with_ai(title, date, location, supplies, extra_info):
         부드러운 해요체(~합니다, ~바랍니다)를 사용하고 이모지와 줄바꿈을 섞어서 작성해줘.
         """
 
-        headers = {"Content-Type": "application/json"}
+        # 🌟 [핵심 변경] AQ. 키의 보안 규격에 맞게 헤더에 인증 키를 담아줍니다.
+        headers = {
+            "Content-Type": "application/json",
+            "x-goog-api-key": api_key  # 구글 서버가 요구하는 올바른 API 키 헤더 전달 방식
+        }
+        
         payload = {
             "contents": [
                 {
@@ -57,19 +62,18 @@ def generate_announcement_with_ai(title, date, location, supplies, extra_info):
             ]
         }
 
-        # 실제로 구글 API 본진 서버에 데이터 전송
+        # 실제로 구글 서버에 요청 전송
         response = requests.post(url, headers=headers, json=payload, timeout=30)
         
         if response.status_code == 200:
             result_json = response.json()
-            # 정상적인 데이터인 경우 생성된 텍스트만 추출
             return result_json["candidates"][0]["content"]["parts"][0]["text"]
         else:
             return f"❌ 구글 서버 응답 에러 (코드 {response.status_code}): {response.text}"
 
     except Exception as e:
         return f"❌ AI 생성 중 오류가 발생했습니다: {str(e)}"
-
+        
 # =====================================================================
 # 🎨 3. 디자인 고도화 CSS 정의
 # =====================================================================
