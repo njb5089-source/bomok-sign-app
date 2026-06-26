@@ -17,15 +17,9 @@ else:
 if "preview_mode" not in st.session_state: st.session_state.preview_mode = False
 if "show_signup" not in st.session_state: st.session_state.show_signup = False
 if "generated" not in st.session_state: st.session_state.generated = False
+if "is_teacher_authenticated" not in st.session_state: st.session_state.is_teacher_authenticated = False
 if "ai_generated_desc" not in st.session_state:
     st.session_state.ai_generated_desc = "위 필수 정보를 입력한 후 버튼을 누르면 AI가 본문을 자동으로 작성합니다."
-
-# 🎯 [핵심 변경] 상단 스위치 제거 후 주소 파라미터(?mode=parent)로 유저 모드 완전 자동 판정
-query_params = st.query_params
-if query_params.get("mode") == "parent":
-    current_user_mode = "parent"
-else:
-    current_user_mode = "teacher"
 
 
 # =====================================================================
@@ -92,52 +86,9 @@ st.markdown("""
 
 
 # =====================================================================
-# 📱 [CASE 1] 학부모 전용 링크 접속 화면 (자동 판정)
+# 🛡️ [마스터 분기] 교사 인증 성공 시 교사 화면 표시, 평소엔 무조건 학부모 화면
 # =====================================================================
-if current_user_mode == "parent":
-    st.title("🌲 보목지역아동센터 가정통신문")
-    st.subheader("모바일 확인 및 동의서 제출")
-    
-    # 교사가 세팅한 AI 본문 출력
-    st.info(st.session_state.ai_generated_desc)
-    
-    st.markdown("### ⚖️ 법적 고지 및 개인정보 수집 동의")
-    st.caption("본 동의서의 전자서명은 「전자문서 및 전자거래 기본법」 제4조 제1항에 의거하여 친필 서명과 동일한 법적 효력을 가집니다.")
-    
-    st.warning("🤖 AI 컴플라이언스 가이드:\n야외 활동 서식으로 판정되어 보험 가입용 [주민등록번호] 수집 칸이 자동 추가되었습니다.")
-    child_ssn = st.text_input("아동 주민등록번호 (보험 가입용)", placeholder="000000-0000000")
-    child_name = st.text_input("아동 성명", placeholder="예: 김민준")
-    parent_name = st.text_input("보호자 성명", placeholder="예: 김철수")
-    parent_phone = st.text_input("보호자 연락처", placeholder="예: 010-1234-5678")
-    
-    agree = st.checkbox("위 내용을 모두 확인하였으며 동의합니다.")
-    st.markdown("---")
-    
-    if agree:
-        if st.button("✍️ 터치하여 서명하기"):
-            st.session_state.show_signup = True
-            
-    if st.session_state.get("show_signup", False):
-        st.markdown('<div class="popup-box">', unsafe_allow_html=True)
-        st.markdown("### 📱 모바일 전용 서명 패드")
-        canvas_result = st_canvas(
-            fill_color="rgba(255, 255, 255, 0)", stroke_width=3,
-            stroke_color="#000000", background_color="#F3F4F6",
-            height=150, width=350, drawing_mode="freedraw", key="canvas_parent"
-        )
-        if st.button("✅ 서명 완료 및 최종 제출하기"):
-            if not child_name or not parent_name:
-                st.error("⚠️ 아동 성명과 보호자 성명을 꼭 입력해 주세요.")
-            else:
-                st.success("🎉 보목지역아동센터 동의서 제출이 완료되었습니다!")
-                st.session_state.show_signup = False
-        st.markdown('</div>', unsafe_allow_html=True)
-
-
-# =====================================================================
-# 🛡️ [CASE 2] 교사 포털 (기본 마스터 화면)
-# =====================================================================
-else:
+if st.session_state.is_teacher_authenticated:
     st.title("🛡️ 보목지역아동센터 교사 포털")
     st.subheader("가정통신문 작성 및 AI 자동화 시스템")
     
@@ -207,13 +158,73 @@ else:
         st.success("🎉 최종 시안 확인 완료! 학부모 전용 링크 시스템이 활성화되었습니다.")
         st.markdown("### 📱 학부모 발송용 카카오톡 주소")
         
-        # 🌟 포워딩 버그가 없는 무조건 열리는 100% 안전한 '진짜 긴 원본 주소'에 파라미터를 정확히 결합했습니다.
-        parent_link = "https://bomok-sign-app-ss6ipgcadtqcwembfgfskz.streamlit.app/?mode=parent"
+        # 🌟 파라미터가 전혀 없는 순수한 순정 주소이므로 카톡 미리보기가 완벽하게 작동합니다!
+        parent_link = "https://bomok-sign-app-ss6ipgcadtqcwembfgfskz.streamlit.app/"
         
         st.info("💡 아래 상자 오른쪽 끝의 복사 버튼을 누른 뒤, 카카오톡에 그대로 전송하세요!")
         st.code(parent_link, language="text")
         
         if st.button("🆕 새 가정통신문 작성하기"):
             st.session_state.generated = False
+            st.session_state.is_teacher_authenticated = False  # 처음 상태로 리셋
             st.session_state.ai_generated_desc = "위 필수 정보를 입력한 후 버튼을 누르면 AI가 본문을 자동으로 작성합니다."
             st.rerun()
+
+    # 교사 로그아웃용 비밀 버튼
+    if st.button("🔒 관리자 화면 로그아웃"):
+        st.session_state.is_teacher_authenticated = False
+        st.rerun()
+
+
+# =====================================================================
+# 📱 [기본 화면] 링크를 타고 들어오면 무조건 보이는 학부모 화면
+# =====================================================================
+else:
+    st.title("🌲 보목지역아동센터 가정통신문")
+    st.subheader("모바일 확인 및 동의서 제출")
+    
+    st.info(st.session_state.ai_generated_desc)
+    
+    st.markdown("### ⚖️ 법적 고지 및 개인정보 수집 동의")
+    st.caption("본 동의서의 전자서명은 「전자문서 및 전자거래 기본법」 제4조 제1항에 의거하여 친필 서명과 동일한 법적 효력을 가집니다.")
+    
+    st.warning("🤖 AI 컴플라이언스 가이드:\n야외 활동 서식으로 판정되어 보험 가입용 [주민등록번호] 수집 칸이 자동 추가되었습니다.")
+    child_ssn = st.text_input("아동 주민등록번호 (보험 가입용)", placeholder="000000-0000000")
+    child_name = st.text_input("아동 성명", placeholder="예: 김민준")
+    parent_name = st.text_input("보호자 성명", placeholder="예: 김철수")
+    parent_phone = st.text_input("보호자 연락처", placeholder="예: 010-1234-5678")
+    
+    agree = st.checkbox("위 내용을 모두 확인하였으며 동의합니다.")
+    st.markdown("---")
+    
+    if agree:
+        if st.button("✍️ 터치하여 서명하기"):
+            st.session_state.show_signup = True
+            
+    if st.session_state.get("show_signup", False):
+        st.markdown('<div class="popup-box">', unsafe_allow_html=True)
+        st.markdown("### 📱 모바일 전용 서명 패드")
+        canvas_result = st_canvas(
+            fill_color="rgba(255, 255, 255, 0)", stroke_width=3,
+            stroke_color="#000000", background_color="#F3F4F6",
+            height=150, width=350, drawing_mode="freedraw", key="canvas_parent"
+        )
+        if st.button("✅ 서명 완료 및 최종 제출하기"):
+            if not child_name or not parent_name:
+                st.error("⚠️ 아동 성명과 보호자 성명을 꼭 입력해 주세요.")
+            else:
+                st.success("🎉 보목지역아동센터 동의서 제출이 완료되었습니다!")
+                st.session_state.show_signup = False
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # 🤫 [선생님 전용 비밀통로] 화면 맨 아래 숨겨진 입력창
+    st.markdown("<br><br><br><br><br><br><br><br>", unsafe_allow_html=True)
+    with st.expander("🔐 센터 교사 전용 관리자 로그인"):
+        password = st.text_input("관리자 비밀번호를 입력하세요", type="password")
+        if st.button("로그인"):
+            if password == "1234":  # 💡 원하시는 비밀번호로 변경하여 사용 가능합니다!
+                st.session_state.is_teacher_authenticated = True
+                st.success("인증 성공! 교사 포털로 진입합니다.")
+                st.rerun()
+            else:
+                st.error("❌ 비밀번호가 올바르지 않습니다.")
