@@ -40,7 +40,7 @@ else:
 # =====================================================================
 # 🤖 2. AI 본문 자동 작성 함수 정의
 # =====================================================================
-def generate_announcement_with_ai(title, date, location, supplies, extra_info,
+def generate_announcement_with_ai(title, info_items,
                                   collected_items=None, purpose=None):
     try:
         api_key = st.secrets.get("GEMINI_API_KEY", None)
@@ -67,16 +67,15 @@ def generate_announcement_with_ai(title, date, location, supplies, extra_info,
         - {purpose_rule}
         """
 
+        info_lines = "\n".join(f"        - {lbl}: {val}" for lbl, val in (info_items or []) if (lbl or val))
+
         prompt = f"""
         너는 보목지역아동센터의 따뜻하고 정중한 사회복지사야.
         아래 제공된 정보를 바탕으로 학부모님들께 모바일로 발송할 '가정통신문 안내문 본문'을 멋지게 작성해줘.
 
         [입력 정보]
         - 프로그램 제목: {title}
-        - 일시: {date}
-        - 장소: {location}
-        - 준비물: {supplies}
-        - 기타 강조사항: {extra_info}
+{info_lines}
         {privacy_block}
         ※ 개인정보 수집·파기, 만 14세 미만 법정대리인 동의 등 '공식 법적 고지문'은 시스템이 동의서 하단에 별도로 자동 표시하니, 너는 그 부분을 작성하지 말고 따뜻하고 정중한 프로그램 안내에 집중해줘.
         부드러운 해요체(~합니다, ~바랍니다)를 사용하고 이모지와 줄바꿈을 섞어서 작성해줘.
@@ -388,10 +387,9 @@ def publish_announcement(data):
         except gspread.WorksheetNotFound:
             ws = sh.add_worksheet(title="발송안내문", rows=10, cols=10)
         ws.clear()
-        ws.append_row(["title", "date", "location", "supplies", "desc", "is_outdoor", "fields", "custom_fields"])
+        ws.append_row(["title", "desc", "is_outdoor", "fields", "custom_fields"])
         ws.append_row([
-            data["title"], data["date"], data["location"],
-            data["supplies"], data["desc"], "Y" if data["is_outdoor"] else "N",
+            data["title"], data["desc"], "Y" if data["is_outdoor"] else "N",
             data.get("fields", ""), data.get("custom_fields", ""),
         ])
         return True, None
@@ -649,14 +647,58 @@ else:
     
     st.write("### 📝 1. 프로그램 기본 정보 입력")
     is_disabled = st.session_state.preview_mode
-    
-    title = st.text_input("동의서 제목", "섶섬 생태 탐방 및 자리돔 낚시 체험", disabled=is_disabled)
-    date = st.text_input("일시", "2026년 7월 11일(토) 09:00 ~ 16:00", disabled=is_disabled)
-    location = st.text_input("장소", "섶섬 일대 및 서귀포 보목항", disabled=is_disabled)
-    supplies = st.text_input("필수 준비물", "편한 복장, 운동화, 개인 물병, 모자", disabled=is_disabled)
-    extra_info = st.text_input("기타 강조 사항", "센터 차량을 이용하며 안전요원이 동행합니다.", disabled=is_disabled)
-    
-    is_outdoor = any(keyword in location for keyword in ["섬", "항", "바다", "산", "야외", "캠프", "공원", "체험"])
+
+    if "info_title" not in st.session_state:
+        st.session_state.info_title = "섶섬 생태 탐방 및 자리돔 낚시 체험"
+    title = st.text_input("동의서 제목", key="info_title", disabled=is_disabled)
+
+    # 기본 정보 항목 빌더 — 항목을 추가/삭제할 수 있습니다.
+    if "info_items" not in st.session_state:
+        st.session_state.info_iid = 0
+        st.session_state.info_items = []
+        for lbl, val in [
+            ("일시", "2026년 7월 11일(토) 09:00 ~ 16:00"),
+            ("참여 대상", "초등 저학년"),
+            ("장소", "섶섬 일대 및 서귀포 보목항"),
+            ("준비물", "편한 복장, 운동화, 개인 물병, 모자"),
+            ("기타 강조 사항", "센터 차량을 이용하며 안전요원이 동행합니다."),
+        ]:
+            iid = st.session_state.info_iid
+            st.session_state.info_items.append({"id": iid})
+            st.session_state[f"info_label_{iid}"] = lbl
+            st.session_state[f"info_value_{iid}"] = val
+            st.session_state.info_iid += 1
+
+    st.caption("항목명과 내용을 입력하세요. 필요한 항목은 ➕로 추가, 🗑로 삭제할 수 있습니다.")
+    remove_iid = None
+    for it in st.session_state.info_items:
+        iid = it["id"]
+        ic1, ic2, ic3 = st.columns([3, 6, 1], vertical_alignment="center")
+        ic1.text_input("항목명", key=f"info_label_{iid}", disabled=is_disabled,
+                       placeholder="예: 장소", label_visibility="collapsed")
+        ic2.text_input("내용", key=f"info_value_{iid}", disabled=is_disabled,
+                       placeholder="내용 입력", label_visibility="collapsed")
+        if not is_disabled and ic3.button("🗑", key=f"info_del_{iid}"):
+            remove_iid = iid
+    if remove_iid is not None:
+        st.session_state.info_items = [x for x in st.session_state.info_items if x["id"] != remove_iid]
+        st.rerun()
+    if not is_disabled and st.button("➕ 항목 추가", key="info_add"):
+        st.session_state.info_items.append({"id": st.session_state.info_iid})
+        st.session_state.info_iid += 1
+
+    # 입력된 정보 항목 모으기 (라벨/내용 중 하나라도 있으면)
+    info_items_data = []
+    for it in st.session_state.info_items:
+        iid = it["id"]
+        lbl = st.session_state.get(f"info_label_{iid}", "").strip()
+        val = st.session_state.get(f"info_value_{iid}", "").strip()
+        if lbl or val:
+            info_items_data.append((lbl, val))
+
+    # 야외/수상/숙박 자동 감지는 모든 입력 내용에서 키워드를 찾습니다.
+    all_info_text = " ".join(v for _, v in info_items_data)
+    is_outdoor = any(k in all_info_text for k in ["섬", "항", "바다", "산", "야외", "캠프", "공원", "체험"])
 
     st.markdown("---")
     st.write("### 🧩 2. 받을 개인정보 항목 선택")
@@ -742,8 +784,8 @@ else:
     custom_labels = [q["label"] for q in custom_questions_defs]
 
     # 상황별 자동 경고/권고
-    is_water = any(k in location for k in ["바다", "해변", "해수욕", "물놀이", "수영", "계곡", "갯벌", "항", "섬"])
-    is_overnight = any(k in location for k in ["1박", "2박", "캠프", "캠핑", "숙박", "야영", "수련"])
+    is_water = any(k in all_info_text for k in ["바다", "해변", "해수욕", "물놀이", "수영", "계곡", "갯벌", "항", "섬"])
+    is_overnight = any(k in all_info_text for k in ["1박", "2박", "캠프", "캠핑", "숙박", "야영", "수련"])
     if is_water:
         st.warning("🌊 수상·물놀이 활동으로 보입니다 → '응급의료 처치 위임 동의'와 안전 항목(예: 수영 가능 여부)을 권장합니다.")
     if is_overnight:
@@ -787,7 +829,7 @@ else:
             with st.spinner("Gemini AI가 멋진 가정통신문을 작성하고 있습니다..."):
                 collected_items = [FIELDS_BY_ID[i]["label"] for i in selected_ids] + custom_labels
                 generated_text = generate_announcement_with_ai(
-                    title, date, location, supplies, extra_info, collected_items, purpose
+                    title, info_items_data, collected_items, purpose
                 )
                 st.session_state.ai_generated_desc = generated_text
                 st.rerun()
@@ -867,8 +909,7 @@ else:
             if st.button("🚀 시안 확정 및 발송 링크 생성"):
                 # 확정한 안내문을 시트에 발행 → 학부모 화면이 읽어가게 함
                 ok, err = publish_announcement({
-                    "title": title, "date": date, "location": location,
-                    "supplies": supplies, "desc": desc, "is_outdoor": is_outdoor,
+                    "title": title, "desc": desc, "is_outdoor": is_outdoor,
                     "fields": ",".join(selected_ids),
                     "custom_fields": json.dumps(custom_questions_defs, ensure_ascii=False),
                 })
