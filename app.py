@@ -395,17 +395,18 @@ else:
 
     st.markdown("---")
     st.write("### 🧩 2. 받을 개인정보 항목 선택")
-    st.caption("먼저 받을 정보를 고르면, 아래 AI가 '수집·이용 목적'까지 본문에 반영합니다. (아동 성명·보호자 성명은 항상 포함)")
+    st.caption("받을 정보를 눌러 선택하세요. 선택한 항목은 진하게 표시됩니다. (아동 성명·보호자 성명은 항상 포함)")
     if "field_labels" not in st.session_state:
         st.session_state.field_labels = ["보호자 연락처"]   # 기본 추천
     if is_outdoor and "아동 주민등록번호" not in st.session_state.field_labels:
         st.info("🤖 야외 활동으로 감지됐어요. 보험 가입이 필요하면 '아동 주민등록번호'를 추가하세요.")
-    selected_labels = st.multiselect(
+    selected_labels = st.pills(
         "받을 정보 선택",
         options=[f["label"] for f in OPTIONAL_FIELDS],
+        selection_mode="multi",
         key="field_labels",
         disabled=is_disabled,
-    )
+    ) or []
     selected_ids = ALWAYS_IDS + [LABEL_TO_ID[lbl] for lbl in selected_labels]
 
     # 직접 추가 질문 빌더 — 구글 폼처럼 질문을 1개씩 추가하고 형식을 고릅니다.
@@ -415,9 +416,10 @@ else:
     if "next_qid" not in st.session_state:
         st.session_state.next_qid = 1
     if not is_disabled and st.button("➕ 질문 추가"):
+        # st.rerun()을 호출하지 않습니다. 호출하면 기존 질문 위젯이 그려지기 전에
+        # 새로고침되어 객관식 보기 등 입력값이 사라집니다. 같은 실행 안에서 바로 렌더됩니다.
         st.session_state.custom_questions.append({"id": st.session_state.next_qid})
         st.session_state.next_qid += 1
-        st.rerun()
 
     QTYPES = ["직접 기입", "체크박스", "객관식"]
     remove_id = None
