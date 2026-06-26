@@ -95,7 +95,7 @@ else:
     st.subheader("가정통신문 작성 및 AI 검증 시스템")
     st.markdown("---")
     
-    # 1단계: 정보 입력 (시안 확인 모드일 때는 입력창을 비활성화(disabled)하여 수정을 막고 시안에 집중하게 함)
+    # 1단계: 정보 입력 (시안 확인 모드일 때는 입력창을 잠금)
     st.write("### 📝 1. 동의서 내용 입력")
     is_disabled = st.session_state.preview_mode
     
@@ -104,47 +104,4 @@ else:
     location = st.text_input("장소 (야외 단어 입력 시 AI 엔진 작동)", "섶섬 일대 및 서귀포 보목항", disabled=is_disabled)
     desc = st.text_area("상세 안내 문구", "센터 차량을 이용하며 안전요원이 동행합니다.", disabled=is_disabled)
     
-    # AI 엔진 실시간 야외 활동 판정 로직
-    is_outdoor = any(keyword in location for keyword in ["섬", "항", "바다", "산", "야외", "캠프", "공원", "체험"])
-    
-    # 시안 확인 모드가 아닐 때 (최초 작성 중일 때)
-    if not st.session_state.preview_mode:
-        st.markdown("---")
-        if st.button("🔍 학부모용 서식 시안 미리보기"):
-            st.session_state.preview_mode = True
-            st.rerun()
-
-    # =====================================================================
-    # [핵심] 2단계: 학부모용 서식 미리보기 시안 화면 (선생님이 요청하신 영역)
-    # =====================================================================
-    if st.session_state.preview_mode:
-        st.markdown("---")
-        st.markdown("### 📱 2. 학부모용 최종 발송 시안 확인")
-        st.caption("초록색 박스 내부가 학부모 스마트폰에 그대로 띄워질 실물 화면입니다. 오타나 레이아웃을 확인하세요.")
-        
-        # 초록색 스마트폰 프레임 시뮬레이션 시작
-        st.markdown('<div class="preview-container">', unsafe_allow_html=True)
-        
-        st.markdown(f"### 🌲 {title}")
-        st.caption("보목지역아동센터 가정통신문")
-        
-        st.info(f"""
-        안녕하세요, 보목지역아동센터입니다. 아래 내용을 확인하신 후, 동의 여부를 선택하여 서명 제출해 주시기 바랍니다.
-        
-        🗓️ 일시: {date}
-        📍 장소: {location}
-        👟 상세안내: {desc}
-        """)
-        
-        st.markdown("##### ⚖️ 법적 고지 및 개인정보 수집 동의")
-        st.caption("본 동의서의 전자서명은 친필 서명과 동일한 법적 효력을 가집니다.")
-        
-        if is_outdoor:
-            st.warning("🤖 AI 컴플라이언스 엔진 감지:\n야외 활동 서식으로 판정되어 보험 가입용 [주민등록번호] 입력란 및 즉시 파기 고지문이 기본 탑재됩니다.")
-            st.text_input("[학부모 화면 예시] 아동 주민등록번호 입력창", "000000-0000000", disabled=True)
-            
-        st.text_input("[학부모 화면 예시] 아동 성명", placeholder="아동 성명 입력란", disabled=True)
-        st.text_input("[학부모 화면 예시] 보호자 성명", placeholder="보호자 성명 입력란", disabled=True)
-        st.checkbox("[학부모 화면 예시] 위 내용을 모두 확인하였으며 동의합니다.", disabled=True)
-        
-        st.markdown('</div>
+    # AI 엔진 실시간 야외 활동 판정 로
