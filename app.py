@@ -3,19 +3,19 @@ import google.generativeai as genai
 from streamlit_drawable_canvas import st_canvas
 
 # =====================================================================
-# 🛠️ 1. AI 설정 및 세션 상태 초기화 (최종 안정화 버전)
+# 🛠️ 1. AI 설정 및 세션 상태 초기화 (파이썬 3.14 최적화 버전)
 # =====================================================================
 API_KEY = st.secrets.get("GEMINI_API_KEY", None)
 
 if API_KEY:
     import os
-    from google.api_core.client_options import ClientOptions
-    
+    # 🌟 시스템 자체에 구글 API v1을 쓰라고 환경 변수로 신호를 찔러줍니다.
+    # 이렇게 하면 라이브러리 내부에서 오류 없이 알아서 최신 주소로 찾아갑니다.
     os.environ["GEMINI_API_KEY"] = API_KEY
+    os.environ["GOOGLE_API_VERSION"] = "v1" 
     
-    # 🌟 정식 ClientOptions 객체를 사용하여 v1 버전을 완벽하게 지정합니다.
-    options = ClientOptions(api_version="v1")
-    genai.configure(api_key=API_KEY, client_options=options)
+    # 괄호 안에 복잡한 옵션들을 전부 다 빼고, 가장 기본형으로만 실행합니다.
+    genai.configure(api_key=API_KEY)
 else:
     st.error("⚠️ Streamlit Secrets에 'GEMINI_API_KEY'가 설정되지 않았습니다.")
     
