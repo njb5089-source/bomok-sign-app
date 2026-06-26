@@ -1,12 +1,11 @@
 import streamlit as st
 import google.generativeai as genai
 from streamlit_drawable_canvas import st_canvas
-import requests  # 🌟 구글 라이브러리 버그 우회를 위해 추가
+import requests
 
 # =====================================================================
-# 🛠️ 1. 세션 상태 초기화 및 기본 환경 변수 설정
+# 🛠️ 1. 환경 변수 세팅 및 세션 상태 초기화
 # =====================================================================
-# 파이썬 3.14 크래시를 방지하기 위해 라이브러리 configure는 제외하고 환경 변수만 안전하게 매핑합니다.
 API_KEY = st.secrets.get("GEMINI_API_KEY", None)
 if API_KEY:
     import os
@@ -15,24 +14,25 @@ else:
     st.error("⚠️ Streamlit Secrets에 'GEMINI_API_KEY'가 설정되지 않았습니다.")
     
 # 세션 상태 변수 초기화
+if "current_user_mode" not in st.session_state: st.session_state.current_user_mode = "teacher"  # 기본값은 교사 모드
 if "preview_mode" not in st.session_state: st.session_state.preview_mode = False
 if "show_signup" not in st.session_state: st.session_state.show_signup = False
 if "generated" not in st.session_state: st.session_state.generated = False
 if "ai_generated_desc" not in st.session_state:
     st.session_state.ai_generated_desc = "위 필수 정보를 입력한 후 버튼을 누르면 AI가 본문을 자동으로 작성합니다."
 
+# 주소 파라미터가 작동할 때를 대비한 자동 연동 (카톡 외 브라우저용)
+query_params = st.query_params
+if query_params.get("mode") == "parent":
+    st.session_state.current_user_mode = "parent"
+
 
 # =====================================================================
-# 🤖 2. AI 본문 자동 작성 함수 정의 (무조건 통과 버전)
+# 🤖 2. AI 본문 자동 작성 함수 정의
 # =====================================================================
 def generate_announcement_with_ai(title, date, location, supplies, extra_info):
     try:
         api_key = st.secrets.get("GEMINI_API_KEY", None)
-        if not api_key:
-            return "❌ AI 생성 중 오류가 발생했습니다: Streamlit Secrets에 API 키가 없습니다."
-
-        # 🌟 1.5-flash가 안 될 때, 구글 최신 무료 서버가 무조건 받아주는 2.5 혹은 최신 호환 규격으로 타겟팅합니다.
-        # 주소창에 직접 모델명을 깔끔하게 맵핑하는 방식입니다.
         url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
         
         prompt = f"""
@@ -49,37 +49,25 @@ def generate_announcement_with_ai(title, date, location, supplies, extra_info):
         부드러운 해요체(~합니다, ~바랍니다)를 사용하고 이모지와 줄바꿈을 섞어서 작성해줘.
         """
 
-        headers = {
-            "Content-Type": "application/json",
-            "x-goog-api-key": api_key
-        }
-        
-        payload = {
-            "contents": [
-                {
-                    "parts": [{"text": prompt}]
-                }
-            ]
-        }
+        headers = {"Content-Type": "application/json", "x-goog-api-key": api_key}
+        payload = {"contents": [{"parts": [{"text": prompt}]}]}
 
         response = requests.post(url, headers=headers, json=payload, timeout=30)
         
         if response.status_code == 200:
             result_json = response.json()
             return result_json["candidates"][0]["content"]["parts"][0]["text"]
-        
-        # 💡 만약 위 주소마저 실패할 경우를 대비해, 텍스트 전용 호환성 100%인 'gemini-pro'로 강제 우회시킵니다.
         else:
             backup_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
             backup_response = requests.post(backup_url, headers=headers, json=payload, timeout=30)
             if backup_response.status_code == 200:
                 return backup_response.json()["candidates"][0]["content"]["parts"][0]["text"]
             else:
-                return f"❌ 구글 서버 응답 에러 (코드 {backup_response.status_code}): {backup_response.text}"
-
+                return f"❌ 구글 서버 응답 에러: {backup_response.text}"
     except Exception as e:
-        return f"❌ AI 생성 중 오류가 발생했습니다: {str(e)}"
-        
+        return f"❌ AI 생성 중 오류: {str(e)}"
+
+
 # =====================================================================
 # 🎨 3. 디자인 고도화 CSS 정의
 # =====================================================================
@@ -106,32 +94,37 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-# URL 파라미터 확인 (학부모 모드 체크)
-query_params = st.query_params
-mode = query_params.get("mode")
+# =====================================================================
+# 🔄 📱 [카톡 버그 완전 해결] 최상단 모드 전환 스위치 배치
+# =====================================================================
+col_mode1, col_mode2 = st.columns(2)
+with col_mode1:
+    if st.button("🛡️ 교사 관리자 화면"):
+        st.session_state.current_user_mode = "teacher"
+        st.rerun()
+with col_mode2:
+    if st.button("🌲 학부모 동의서 화면"):
+        st.session_state.current_user_mode = "parent"
+        st.rerun()
+
+st.markdown(f"**현재 상태:** {'🟢 학부모 전용 화면' if st.session_state.current_user_mode == 'parent' else '🔵 교사 작성 화면'}")
+st.markdown("---")
 
 
 # =====================================================================
-# [CASE 1] 학부모 전용 링크 접속 화면 (?mode=parent)
+# [CASE 1] 학부모 전용 링크 접속 화면
 # =====================================================================
-if mode == "parent":
+if st.session_state.current_user_mode == "parent":
     st.title("🌲 보목지역아동센터 가정통신문")
     st.subheader("모바일 확인 및 동의서 제출")
-    
-    # 세션에 저장된 AI 안내문이나 기본 안내문 출력
     st.info(st.session_state.ai_generated_desc)
-    
     st.markdown("### ⚖️ 법적 고지 및 개인정보 수집 동의")
     st.caption("본 동의서의 전자서명은 「전자문서 및 전자거래 기본법」 제4조 제1항에 의거하여 친필 서명과 동일한 법적 효력을 가집니다.")
-    
-    # 야외 활동 자동 추가 로직 (기본 켜짐 예시)
     st.warning("🤖 AI 컴플라이언스 가이드:\n야외 활동 서식으로 판정되어 보험 가입용 [주민등록번호] 수집 칸이 자동 추가되었습니다.")
     child_ssn = st.text_input("아동 주민등록번호 (보험 가입용)", placeholder="000000-0000000")
-    
     child_name = st.text_input("아동 성명", placeholder="예: 김민준")
     parent_name = st.text_input("보호자 성명", placeholder="예: 김철수")
     parent_phone = st.text_input("보호자 연락처", placeholder="예: 010-1234-5678")
-    
     agree = st.checkbox("위 내용을 모두 확인하였으며 동의합니다.")
     st.markdown("---")
     
@@ -142,13 +135,11 @@ if mode == "parent":
     if st.session_state.get("show_signup", False):
         st.markdown('<div class="popup-box">', unsafe_allow_html=True)
         st.markdown("### 📱 모바일 전용 서명 패드")
-        
         canvas_result = st_canvas(
             fill_color="rgba(255, 255, 255, 0)", stroke_width=3,
             stroke_color="#000000", background_color="#F3F4F6",
             height=150, width=350, drawing_mode="freedraw", key="canvas_parent"
         )
-        
         if st.button("✅ 서명 완료 및 최종 제출하기"):
             if not child_name or not parent_name:
                 st.error("⚠️ 아동 성명과 보호자 성명을 꼭 입력해 주세요.")
@@ -164,7 +155,6 @@ if mode == "parent":
 else:
     st.title("🛡️ 보목지역아동센터 교사 포털")
     st.subheader("가정통신문 작성 및 AI 자동화 시스템")
-    st.markdown("---")
     
     st.write("### 📝 1. 프로그램 기본 정보 입력")
     is_disabled = st.session_state.preview_mode
@@ -178,23 +168,14 @@ else:
     st.markdown("---")
     st.write("### 🤖 2. AI 안내문 본문 생성")
     
-    # AI 초안 작성 버튼
     if not st.session_state.preview_mode:
         if st.button("🪄 AI 안내문 초안 자동 생성하기"):
             with st.spinner("Gemini AI가 멋진 가정통신문을 작성하고 있습니다..."):
                 generated_text = generate_announcement_with_ai(title, date, location, supplies, extra_info)
                 st.session_state.ai_generated_desc = generated_text
-                st.rerun()  # 🌟 생성 직후 화면에 즉시 갱신하도록 추가
+                st.rerun()
     
-    # AI가 작성한 결과를 보여주고 교사가 수정도 가능한 상자
-    desc = st.text_area(
-        "상세 안내 문구 (AI가 작성한 내용을 자유롭게 편집하세요)",
-        value=st.session_state.ai_generated_desc,
-        height=250,
-        disabled=is_disabled
-    )
-    
-    # 야외 활동 체크 키워드
+    desc = st.text_area("상세 안내 문구", value=st.session_state.ai_generated_desc, height=250, disabled=is_disabled)
     is_outdoor = any(keyword in location for keyword in ["섬", "항", "바다", "산", "야외", "캠프", "공원", "체험"])
     
     if not st.session_state.preview_mode:
@@ -203,41 +184,32 @@ else:
             st.session_state.preview_mode = True
             st.rerun()
 
-    # 3단계: 학부모용 서식 미리보기 시안 화면
     if st.session_state.preview_mode:
         st.markdown("---")
         st.markdown("### 📱 3. 학부모용 최종 발송 시안 확인")
-        
         st.markdown('<div class="preview-container">', unsafe_allow_html=True)
         st.markdown(f"### 🌲 {title}")
         st.caption("보목지역아동센터 가정통신문")
-        
-        # 교사가 확정(혹은 수정)한 desc 본문이 그대로 미리보기에 노출됩니다.
         st.info(desc)
-        
         st.markdown("##### ⚖️ 법적 고지 및 개인정보 수집 동의")
         st.caption("본 동의서의 전자서명은 친필 서명과 동일한 법적 효력을 가집니다.")
         
         if is_outdoor:
-            st.warning("🤖 AI 컴플라이언스 엔진 감지: 야외 활동 서식으로 판정되어 보험 가입용 [주민등록번호] 입력란이 하단에 활성화됩니다.")
+            st.warning("🤖 AI 컴플라이언스 엔진 감지: 야외 활동 서식으로 판정되어 보험 가입용 [주민등록번호] 입력란이 활성화됩니다.")
             st.text_input("[학부모 화면 예시] 아동 주민등록번호", "000000-0000000", disabled=True, key="p_ssn")
             
         st.text_input("[학부모 화면 예시] 아동 성명", placeholder="예: 김민준", disabled=True, key="p_name")
         st.text_input("[학부모 화면 예시] 보호자 성명", placeholder="예: 김철수", disabled=True, key="p_pname")
         st.text_input("[학부모 화면 예시] 보호자 연락처", placeholder="예: 010-1234-5678", disabled=True, key="p_phone")
         st.checkbox("[학부모 화면 예시] 위 내용을 모두 확인하였으며 동의합니다.", disabled=True, key="p_agree")
-        
         st.markdown('</div>', unsafe_allow_html=True)
-        
         st.markdown("---")
-        st.write("### ⚙️ 시안 최종 컨펌 및 수정")
         
         col1, col2 = st.columns(2)
         with col1:
             if st.button("✏️ 오타 수정하기"):
                 st.session_state.preview_mode = False
                 st.rerun()
-                
         with col2:
             if st.button("🚀 시안 확정 및 발송 링크 생성"):
                 st.session_state.generated = True
@@ -245,23 +217,17 @@ else:
                 st.balloons()
                 st.rerun()
 
- # =====================================================================
-    # 🎉 4. 최종 링크 생성 완료 화면 (학부모 전용 URL 고정 버전)
-    # =====================================================================
     if st.session_state.get("generated", False):
         st.markdown("---")
         st.success("🎉 최종 시안 확인 완료! 학부모 전용 링크 시스템이 활성화되었습니다.")
         st.markdown("### 📱 학부모 발송용 카카오톡 주소")
         
-        # 🌟 관리자 페이지 주소와 절대 꼬이지 않도록 순수 학부모용 앱 주소를 확실하게 고정합니다.
-        parent_link = "https://bomok-sign-app.streamlit.app/?mode=parent"
+        # 주소 파라미터가 날아가도 상관없는 표준 순수 주소를 복사하게 유도합니다.
+        parent_link = "https://bomok-sign-app.streamlit.app"
         
-        st.info("💡 아래 상자 오른쪽 끝의 복사 버튼을 누른 뒤, 카카오톡에 붙여넣기(Ctrl+V) 하세요!")
-        
-        # 📋 마우스 올리면 우측에 복사 버튼이 생기는 표준 코드 상자입니다.
+        st.info("💡 아래 상자 오른쪽 끝의 복사 버튼을 누른 뒤, 카카오톡에 붙여넣기(Ctrl+V) 하세요! 학부모님은 접속 후 상단의 '🌲 학부모 동의서 화면' 버튼을 누르면 됩니다.")
         st.code(parent_link, language="text")
         
-        st.markdown("<br>", unsafe_allow_html=True)
         if st.button("🆕 새 가정통신문 작성하기"):
             st.session_state.generated = False
             st.session_state.ai_generated_desc = "위 필수 정보를 입력한 후 버튼을 누르면 AI가 본문을 자동으로 작성합니다."
