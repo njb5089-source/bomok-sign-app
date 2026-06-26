@@ -35,22 +35,35 @@ else:
 # =====================================================================
 # 🤖 2. AI 본문 자동 작성 함수 정의
 # =====================================================================
-def generate_announcement_with_ai(title, date, location, supplies, extra_info):
+def generate_announcement_with_ai(title, date, location, supplies, extra_info, collected_items=None):
     try:
         api_key = st.secrets.get("GEMINI_API_KEY", None)
         url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
-        
+
+        # 수집할 개인정보 항목이 있으면, 본문에 '수집·이용 목적' 안내를 포함하도록 지시
+        privacy_block = ""
+        if collected_items:
+            items_text = ", ".join(collected_items)
+            privacy_block = f"""
+        [이번 동의서에서 수집할 개인정보 항목]
+        {items_text}
+
+        위 개인정보를 수집하므로, 본문 끝부분에 '개인정보 수집·이용 안내' 문단을 자연스럽게 포함해줘.
+        - 수집 항목, 수집·이용 목적(예: 여행자보험 가입, 안전관리, 비상연락 등), 보유기간을 학부모가 이해하기 쉽게 안내할 것.
+        - 주민등록번호·건강정보 등 민감정보가 있으면 '관련 법령에 따라 안전하게 관리되며 목적 외 사용하지 않는다'는 안심 문구를 넣어줘.
+        """
+
         prompt = f"""
-        너는 보목지역아동센터의 따뜻하고 정중한 사회복지사야. 
+        너는 보목지역아동센터의 따뜻하고 정중한 사회복지사야.
         아래 제공된 정보를 바탕으로 학부모님들께 모바일로 발송할 '가정통신문 안내문 본문'을 멋지게 작성해줘.
-        
+
         [입력 정보]
         - 프로그램 제목: {title}
         - 일시: {date}
         - 장소: {location}
         - 준비물: {supplies}
         - 기타 강조사항: {extra_info}
-        
+        {privacy_block}
         부드러운 해요체(~합니다, ~바랍니다)를 사용하고 이모지와 줄바꿈을 섞어서 작성해줘.
         """
 
@@ -333,24 +346,11 @@ else:
     supplies = st.text_input("필수 준비물", "편한 복장, 운동화, 개인 물병, 모자", disabled=is_disabled)
     extra_info = st.text_input("기타 강조 사항", "센터 차량을 이용하며 안전요원이 동행합니다.", disabled=is_disabled)
     
-    st.markdown("---")
-    st.write("### 🤖 2. AI 안내문 본문 생성")
-    
-    if not st.session_state.preview_mode:
-        if st.button("🪄 AI 안내문 초안 자동 생성하기"):
-            with st.spinner("Gemini AI가 멋진 가정통신문을 작성하고 있습니다..."):
-                generated_text = generate_announcement_with_ai(title, date, location, supplies, extra_info)
-                st.session_state.ai_generated_desc = generated_text
-                st.rerun()
-    
-    desc = st.text_area("상세 안내 문구", value=st.session_state.ai_generated_desc, height=250, disabled=is_disabled)
-    # 입력칸에 직접 쓴 내용도 메모리에 저장 → 미리보기/수정 오가도 글이 사라지지 않음
-    st.session_state.ai_generated_desc = desc
     is_outdoor = any(keyword in location for keyword in ["섬", "항", "바다", "산", "야외", "캠프", "공원", "체험"])
 
     st.markdown("---")
-    st.write("### 🧩 3. 받을 개인정보 항목 선택")
-    st.caption("이 동의서에서 학부모에게 받을 정보를 고르세요. (아동 성명·보호자 성명은 항상 포함됩니다)")
+    st.write("### 🧩 2. 받을 개인정보 항목 선택")
+    st.caption("먼저 받을 정보를 고르면, 아래 AI가 '수집·이용 목적'까지 본문에 반영합니다. (아동 성명·보호자 성명은 항상 포함)")
     if "field_labels" not in st.session_state:
         st.session_state.field_labels = ["보호자 연락처"]   # 기본 추천
     if is_outdoor and "아동 주민등록번호" not in st.session_state.field_labels:
@@ -383,9 +383,27 @@ else:
     sensitive_picked = [FIELDS_BY_ID[i]["label"] for i in selected_ids if i in SENSITIVE_IDS]
     if sensitive_picked:
         st.warning(
-            "🔒 민감정보(" + ", ".join(sensitive_picked) + ") 수집 → 수집 목적을 본문에 명시하고, "
-            "정식 버전에서는 암호화 보관이 필요합니다."
+            "🔒 민감정보(" + ", ".join(sensitive_picked) + ") 수집 → 본문에 수집 목적을 명시해야 합니다. "
+            "(아래 AI 생성 시 자동 반영됩니다. 정식 버전에서는 암호화 보관 필요)"
         )
+
+    st.markdown("---")
+    st.write("### 🤖 3. AI 안내문 본문 생성")
+    st.caption("위에서 고른 개인정보 항목의 '수집·이용 목적'까지 AI가 본문에 자동으로 포함합니다.")
+
+    if not st.session_state.preview_mode:
+        if st.button("🪄 AI 안내문 초안 자동 생성하기"):
+            with st.spinner("Gemini AI가 멋진 가정통신문을 작성하고 있습니다..."):
+                collected_items = [FIELDS_BY_ID[i]["label"] for i in selected_ids] + custom_labels
+                generated_text = generate_announcement_with_ai(
+                    title, date, location, supplies, extra_info, collected_items
+                )
+                st.session_state.ai_generated_desc = generated_text
+                st.rerun()
+
+    desc = st.text_area("상세 안내 문구", value=st.session_state.ai_generated_desc, height=250, disabled=is_disabled)
+    # 입력칸에 직접 쓴 내용도 메모리에 저장 → 미리보기/수정 오가도 글이 사라지지 않음
+    st.session_state.ai_generated_desc = desc
 
     if not st.session_state.preview_mode:
         st.markdown("---")
