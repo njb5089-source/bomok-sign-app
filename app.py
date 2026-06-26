@@ -98,15 +98,15 @@ if current_user_mode == "parent":
     st.title("🌲 보목지역아동센터 가정통신문")
     st.subheader("모바일 확인 및 동의서 제출")
     
-    st.info(st.session_state.ai_generated_desc)
     
-    st.markdown("### ⚖️ 법적 고지 및 개인정보 수집 동의")
-    st.caption("본 동의서의 전자서명은 「전자문서 및 전자거래 기본법」 제4조 제1항에 의거하여 친필 서명과 동일한 법적 효력을 가집니다.")
-    st.warning("🤖 AI 컴플라이언스 가이드:\n야외 활동 서식으로 판정되어 보험 가입용 [주민등록번호] 수집 칸이 자동 추가되었습니다.")
+
+    
     child_ssn = st.text_input("아동 주민등록번호 (보험 가입용)", placeholder="000000-0000000")
     child_name = st.text_input("아동 성명", placeholder="예: 김민준")
     parent_name = st.text_input("보호자 성명", placeholder="예: 김철수")
     parent_phone = st.text_input("보호자 연락처", placeholder="예: 010-1234-5678")
+    st.markdown("### ⚖️ 법적 고지 및 개인정보 수집 동의")
+    st.caption("본 동의서의 전자서명은 「전자문서 및 전자거래 기본법」 제4조 제1항에 의거하여 친필 서명과 동일한 법적 효력을 가집니다.")
     agree = st.checkbox("위 내용을 모두 확인하였으며 동의합니다.")
     st.markdown("---")
     
