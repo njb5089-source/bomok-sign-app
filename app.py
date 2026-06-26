@@ -946,7 +946,10 @@ else:
             if st.form_submit_button("명단에 추가"):
                 if new_child and new_phone:
                     ok, err = add_roster_entry(new_child, new_guardian, new_phone)
-                    st.success(f"'{new_child}' 추가됨") if ok else st.error(f"추가 실패: {err}")
+                    if ok:
+                        st.success(f"'{new_child}' 추가됨")
+                    else:
+                        st.error(f"추가 실패: {err}")
                 else:
                     st.warning("아동명과 전화번호는 필수입니다.")
         _roster = load_roster()
