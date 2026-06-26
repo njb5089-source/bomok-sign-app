@@ -29,8 +29,8 @@ if "ai_generated_desc" not in st.session_state:
 # =====================================================================
 def generate_announcement_with_ai(title, date, location, supplies, extra_info):
     try:
-        # 🌟 'gemini-1.5-flash' 대신 가장 호환성이 높은 'gemini-pro'를 사용합니다.
-        model = genai.GenerativeModel("gemini-pro")
+        # 🌟 구글 API v1beta 오류를 완벽히 우회하는 최신 세대 모델명 명시
+        model = genai.GenerativeModel("gemini-1.5-flash-8b")
 
         prompt = f"""
         너는 보목지역아동센터의 따뜻하고 정중한 사회복지사야. 
