@@ -349,10 +349,10 @@ def recipient_link(token):
     return f"{PARENT_BASE}&to={token}"
 
 
-def sms_link(phone, body):
-    """휴대폰 문자앱을 번호·내용 채운 채로 여는 sms: 링크"""
+def sms_link(phone):
+    """휴대폰 문자앱을 해당 번호로 여는 sms: 링크 (받는사람 자동 지정)"""
     digits = "".join(ch for ch in str(phone) if ch.isdigit())
-    return f"sms:{digits}?body={urllib.parse.quote(body)}"
+    return f"sms:{digits}"
 
 
 def publish_announcement(data):
@@ -980,10 +980,11 @@ else:
             done = token in submitted_tokens
             status = "✅ 제출완료" if done else "⏳ 미제출"
             body = (f"[보목지역아동센터] {child} 학부모님, '{ann_title}' 동의서입니다. "
-                    f"아래 링크에서 작성해 주세요.\n{recipient_link(token)}")
+                    f"아래 링크에서 작성해 주세요. {recipient_link(token)}")
             s1, s2 = st.columns([3, 2])
             s1.write(f"{status} · {child} ({phone})")
-            s2.markdown(f'<a href="{sms_link(phone, body)}">📩 문자 보내기</a>', unsafe_allow_html=True)
+            s2.markdown(f'<a href="{sms_link(phone)}">📩 문자앱 열기</a>', unsafe_allow_html=True)
+            st.code(body, language=None)
 
         st.markdown("**🔔 미제출자 리마인드**")
         pending = [r for r in roster if str(r.get("대상ID")) not in submitted_tokens]
@@ -995,7 +996,8 @@ else:
                 token = str(r.get("대상ID"))
                 child, phone = r.get("아동명", ""), r.get("전화번호", "")
                 body = (f"[보목지역아동센터] {child} 학부모님, '{ann_title}' 동의서가 아직 제출되지 않았습니다. "
-                        f"잊지 마시고 작성 부탁드립니다.\n{recipient_link(token)}")
+                        f"작성 부탁드립니다. {recipient_link(token)}")
                 p1, p2 = st.columns([3, 2])
                 p1.write(f"⏳ {child} ({phone})")
-                p2.markdown(f'<a href="{sms_link(phone, body)}">🔔 리마인드 문자</a>', unsafe_allow_html=True)
+                p2.markdown(f'<a href="{sms_link(phone)}">🔔 문자앱 열기</a>', unsafe_allow_html=True)
+                st.code(body, language=None)
