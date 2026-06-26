@@ -127,6 +127,14 @@ def mask_account(acc):
     return "(미입력 또는 형식 오류)"
 
 
+def mask_phone(phone):
+    """전화번호 뒷 4자리를 가립니다. 예: 010-1234-XXXX"""
+    digits = "".join(ch for ch in str(phone) if ch.isdigit())
+    if len(digits) >= 10:
+        return f"{digits[:3]}-{digits[3:7]}-XXXX"
+    return str(phone)
+
+
 # =====================================================================
 # 🧩 분할 입력 도우미 — 정해진 칸 형식으로 개인정보를 입력받습니다.
 # =====================================================================
@@ -284,7 +292,20 @@ def load_submissions():
 # 👨‍👩‍👧 참여 대상(명단) 관리 + 개별 발송 링크
 # =====================================================================
 PARENT_BASE = "https://bomok-sign-app-hpapp9ikgcxqthmdv6wlgp4.streamlit.app/?mode=parent"
-ROSTER_HEADER = ["대상ID", "아동명", "보호자명", "전화번호"]
+ROSTER_HEADER = ["대상ID", "아동명", "학년", "보호자명", "전화번호"]
+GRADES = ["초1", "초2", "초3", "초4", "초5", "초6", "중1", "중2", "중3", "기타"]
+
+
+def grade_category(grade):
+    """학년을 퀵 필터 그룹으로 분류합니다."""
+    g = str(grade)
+    if g in ("초1", "초2", "초3"):
+        return "초등 저학년"
+    if g in ("초4", "초5", "초6"):
+        return "초등 고학년"
+    if g in ("중1", "중2", "중3"):
+        return "중등부"
+    return "기타"
 
 
 def load_roster():
@@ -300,7 +321,7 @@ def load_roster():
         return None
 
 
-def add_roster_entry(child, guardian, phone):
+def add_roster_entry(child, grade, guardian, phone):
     """참여 대상 1명을 '명단' 탭에 추가하고 고유 토큰을 부여합니다."""
     try:
         sh = _open_spreadsheet()
@@ -308,10 +329,13 @@ def add_roster_entry(child, guardian, phone):
             ws = sh.worksheet("명단")
         except gspread.WorksheetNotFound:
             ws = sh.add_worksheet(title="명단", rows=300, cols=len(ROSTER_HEADER))
-        if not ws.get_all_values():
+        existing = ws.get_all_values()
+        # 머리글이 없거나 구조가 바뀌었으면 새 머리글로 정리
+        if not existing or existing[0] != ROSTER_HEADER:
+            ws.clear()
             ws.append_row(ROSTER_HEADER)
         token = "R" + datetime.datetime.now().strftime("%y%m%d%H%M%S%f")  # 문자형 고유 토큰
-        ws.append_row([token, child, guardian, phone])
+        ws.append_row([token, child, grade, guardian, phone])
         return True, None
     except Exception as e:
         return False, str(e)
@@ -933,19 +957,20 @@ else:
     # 👨‍👩‍👧 참여 대상 관리 + 개별 발송 + 미제출 리마인드
     # =====================================================================
     st.markdown("---")
-    st.write("### 👨‍👩‍👧 참여 대상 관리 및 개별 발송")
-    st.caption("참여 아동을 명단에 등록해두면, 대상을 골라 개별 맞춤 링크를 문자로 보낼 수 있습니다.")
+    st.write("### 👨‍👩‍👧 참여 대상 선택")
+    st.caption("센터 아동을 미리 등록해두고, 이번 프로그램 참여 대상을 골라 체크하세요.")
 
     # (1) 명단 등록 / 관리
-    with st.expander("➕ 참여 대상(명단) 등록 / 관리", expanded=False):
+    with st.expander("➕ 센터 아동 명단 등록 / 관리", expanded=False):
         with st.form("roster_add", clear_on_submit=True):
-            rc1, rc2, rc3 = st.columns(3)
+            rc1, rc2, rc3, rc4 = st.columns([3, 2, 3, 3])
             new_child = rc1.text_input("아동명")
-            new_guardian = rc2.text_input("보호자명")
-            new_phone = rc3.text_input("전화번호", placeholder="01012345678")
+            new_grade = rc2.selectbox("학년", GRADES)
+            new_guardian = rc3.text_input("보호자명")
+            new_phone = rc4.text_input("전화번호", placeholder="01012345678")
             if st.form_submit_button("명단에 추가"):
                 if new_child and new_phone:
-                    ok, err = add_roster_entry(new_child, new_guardian, new_phone)
+                    ok, err = add_roster_entry(new_child, new_grade, new_guardian, new_phone)
                     if ok:
                         st.success(f"'{new_child}' 추가됨")
                     else:
@@ -958,59 +983,46 @@ else:
             for i, r in enumerate(_roster):
                 token = r.get("대상ID")
                 d1, d2 = st.columns([6, 1])
-                d1.write(f"- {r.get('아동명','')} / {r.get('보호자명','')} / {r.get('전화번호','')}")
+                d1.write(f"- {r.get('아동명','')} ({r.get('학년','')}) / {r.get('보호자명','')} / {r.get('전화번호','')}")
                 if d2.button("🗑", key=f"del_roster_{i}"):
                     delete_roster_entry(token)
                     st.rerun()
 
-    # (2) 발송 + (3) 제출 추적 + (4) 리마인드
+    # (2) 참여 대상 선택 (퀵 필터 + 체크박스 + 요약)
     roster = load_roster()
     if roster is None:
         st.error("명단을 불러오지 못했습니다. (시트 연결 확인)")
     elif not roster:
-        st.info("위에서 참여 대상을 먼저 등록해 주세요.")
+        st.info("위에서 센터 아동을 먼저 등록해 주세요.")
     else:
-        ann = load_announcement()
-        ann_title = ann.get("title") if ann else "가정통신문"
-        subs = load_submissions() or []
-        submitted_tokens = {str(s.get("대상ID")).strip() for s in subs if str(s.get("대상ID")).strip()}
-        done_cnt = sum(1 for r in roster if str(r.get("대상ID")) in submitted_tokens)
-        st.markdown(f"**📨 발송 대상** (제출 {done_cnt} / 전체 {len(roster)})")
-        st.caption("번호와 메시지를 각각 복사해, 문자앱이나 카카오톡에 붙여넣어 보내세요. (상자 오른쪽 복사 버튼)")
+        # 퀵 선택 버튼 — 해당 그룹을 한 번에 체크
+        st.caption("퀵 선택 — 누르면 해당 그룹 아동이 한 번에 체크됩니다.")
+        qc = st.columns(5)
+        quick_map = [("전체", None), ("초등 저학년", "초등 저학년"),
+                     ("초등 고학년", "초등 고학년"), ("중등부", "중등부")]
+        for idx, (label, cat) in enumerate(quick_map):
+            if qc[idx].button(label, key=f"quick_{idx}", use_container_width=True):
+                for r in roster:
+                    if cat is None or grade_category(r.get("학년", "")) == cat:
+                        st.session_state[f"sel_{str(r.get('대상ID'))}"] = True
+                st.rerun()
+        if qc[4].button("전체 해제", key="quick_clear", use_container_width=True):
+            for r in roster:
+                st.session_state[f"sel_{str(r.get('대상ID'))}"] = False
+            st.rerun()
+
+        # 아동 명단 (체크박스)
+        st.markdown("**▢ 아동 명단 선택**")
         for r in roster:
             token = str(r.get("대상ID"))
-            child, phone = r.get("아동명", ""), r.get("전화번호", "")
-            done = token in submitted_tokens
-            status = "✅ 제출완료" if done else "⏳ 미제출"
-            body = (f"[보목지역아동센터] {child} 학부모님, '{ann_title}' 동의서입니다. "
-                    f"아래 링크에서 작성해 주세요. {recipient_link(token)}")
-            with st.container(border=True):
-                st.write(f"{status} · **{child}**")
-                b1, b2 = st.columns([1, 2])
-                with b1:
-                    st.caption("📱 받는 번호")
-                    st.code(phone, language=None)
-                with b2:
-                    st.caption("💬 메시지(링크 포함)")
-                    st.code(body, language=None)
+            name = r.get("아동명", "")
+            grade = r.get("학년", "")
+            guardian = r.get("보호자명", "")
+            phone = mask_phone(r.get("전화번호", ""))
+            st.checkbox(f"{name} ({grade}) ─ 보호자: {guardian} ({phone})", key=f"sel_{token}")
 
-        st.markdown("**🔔 미제출자 리마인드**")
-        pending = [r for r in roster if str(r.get("대상ID")) not in submitted_tokens]
-        if not pending:
-            st.success("🎉 모든 대상이 제출을 완료했습니다!")
-        else:
-            st.caption(f"미제출 {len(pending)}명. 번호·메시지를 복사해 다시 보내세요.")
-            for r in pending:
-                token = str(r.get("대상ID"))
-                child, phone = r.get("아동명", ""), r.get("전화번호", "")
-                body = (f"[보목지역아동센터] {child} 학부모님, '{ann_title}' 동의서가 아직 제출되지 않았습니다. "
-                        f"작성 부탁드립니다. {recipient_link(token)}")
-                with st.container(border=True):
-                    st.write(f"⏳ **{child}**")
-                    b1, b2 = st.columns([1, 2])
-                    with b1:
-                        st.caption("📱 받는 번호")
-                        st.code(phone, language=None)
-                    with b2:
-                        st.caption("💬 리마인드 메시지")
-                        st.code(body, language=None)
+        # 선택 정보 요약
+        selected_tokens = [str(r.get("대상ID")) for r in roster
+                           if st.session_state.get(f"sel_{str(r.get('대상ID'))}")]
+        st.session_state["selected_tokens"] = selected_tokens   # 이후 단계(링크/추적)에서 사용
+        st.success(f"📋 총 {len(roster)}명 중 **{len(selected_tokens)}명** 선택됨")
