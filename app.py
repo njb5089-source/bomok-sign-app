@@ -5,8 +5,11 @@ import requests
 import datetime
 import json
 import time
+import io
+import base64
 import gspread
 from google.oauth2.service_account import Credentials
+from PIL import Image
 
 # =====================================================================
 # 🛠️ 1. 환경 변수 세팅 및 세션 상태 초기화
@@ -229,6 +232,19 @@ def _input_school(label, key_prefix, disabled=False):
     return " ".join(parts)
 
 
+def signature_to_base64(image_data):
+    """서명 캔버스(numpy 배열)를 PNG로 인코딩해 base64 문자열로 변환합니다."""
+    try:
+        img = Image.fromarray(image_data.astype("uint8"))
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+        # 구글 시트 셀 한도(5만자) 초과 방지: 너무 크면 저장하지 않음
+        return b64 if len(b64) < 48000 else ""
+    except Exception:
+        return ""
+
+
 def _open_spreadsheet():
     """구글 시트에 인증하고 스프레드시트를 엽니다."""
     scopes = ["https://www.googleapis.com/auth/spreadsheets"]
@@ -255,6 +271,15 @@ def save_to_gsheet(row):
         return True, None
     except Exception as e:
         return False, str(e)
+
+
+def load_submissions():
+    """'제출현황' 탭의 모든 제출 기록을 불러옵니다. (없거나 실패 시 None)"""
+    try:
+        ws = _open_spreadsheet().worksheet("제출현황")
+        return ws.get_all_records()
+    except Exception:
+        return None
 
 
 def publish_announcement(data):
@@ -353,7 +378,7 @@ PURPOSE_OPTIONS = {
 SUBMISSION_HEADER = (
     ["제출시각", "안내문 제목"]
     + [f["label"] for f in PRIVACY_FIELDS]
-    + ["기타 입력 항목", "동의 여부", "서명"]
+    + ["기타 입력 항목", "동의 여부", "서명", "서명이미지"]
 )
 
 
@@ -491,12 +516,13 @@ if current_user_mode == "parent":
             else:
                 # 머리글 순서에 맞춰 각 항목을 해당 열에 채워 넣습니다.
                 custom_str = " | ".join(f"{lbl}: {val}" for lbl, val in custom_collected.items() if val)
+                sig_b64 = signature_to_base64(canvas_result.image_data)
                 row = [
                     datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     announcement["title"] if announcement else "(안내문 없음)",
                 ]
                 row += [collected.get(f["label"], "") for f in PRIVACY_FIELDS]
-                row += [custom_str, "동의함", "서명 완료"]
+                row += [custom_str, "동의함", "서명 완료", sig_b64]
                 ok, err = save_to_gsheet(row)
                 if ok:
                     st.success("🎉 보목지역아동센터 동의서 제출이 완료되었습니다!")
@@ -766,3 +792,37 @@ else:
             st.session_state.generated = False
             st.session_state.ai_generated_desc = "위 필수 정보를 입력한 후 버튼을 누르면 AI가 본문을 자동으로 작성합니다."
             st.rerun()
+
+    # =====================================================================
+    # 📋 제출 현황 확인 — 제출 명단 + 전자서명 이미지 조회
+    # =====================================================================
+    st.markdown("---")
+    st.write("### 📋 제출 현황 확인")
+    st.caption("제출된 동의서와 전자서명을 확인합니다. (나중에 동의 내용·서명을 검증할 때 사용)")
+    if st.button("🔄 제출 명단 불러오기"):
+        st.session_state.show_submissions = True
+    if st.session_state.get("show_submissions"):
+        records = load_submissions()
+        if records is None:
+            st.error("제출 현황을 불러오지 못했습니다. (시트 연결을 확인해 주세요)")
+        elif len(records) == 0:
+            st.info("아직 제출된 동의서가 없습니다.")
+        else:
+            st.success(f"총 {len(records)}건이 제출되었습니다.")
+            for rec in reversed(records):   # 최근 제출이 위로 오도록
+                child = rec.get("아동 성명", "")
+                guardian = rec.get("보호자 성명", "")
+                when = rec.get("제출시각", "")
+                with st.expander(f"🧾 {when} · {child} (보호자: {guardian})"):
+                    for k, v in rec.items():
+                        if k == "서명이미지" or not str(v).strip():
+                            continue
+                        st.write(f"- **{k}**: {v}")
+                    sig = rec.get("서명이미지", "")
+                    if sig:
+                        try:
+                            st.image(base64.b64decode(sig), caption="전자서명", width=300)
+                        except Exception:
+                            st.caption("⚠️ 서명 이미지를 불러오지 못했습니다.")
+                    else:
+                        st.caption("서명 이미지 없음(구버전 제출)")
