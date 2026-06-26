@@ -214,6 +214,26 @@ OPTIONAL_FIELDS = [f for f in PRIVACY_FIELDS if not f["always"]]
 # 민감정보로 분류되어 수집 시 경고가 필요한 항목들
 SENSITIVE_IDS = {"child_ssn", "bank_account", "health", "medication"}
 
+# 항목별로 자주 쓰는 '수집·이용 목적' 보기 (드롭다운). 마지막에 '기타' 자동 추가됨
+PURPOSE_OPTIONS = {
+    "guardian_rel":   ["본인 및 법정대리인 확인"],
+    "guardian_phone": ["비상시 연락", "활동 안내·공지 전달"],
+    "emergency":      ["응급상황 시 연락"],
+    "child_gender":   ["활동 그룹 편성", "안전관리"],
+    "child_birth":    ["보험 가입", "연령 확인 및 안전관리"],
+    "child_ssn":      ["여행자보험 가입", "단체 상해보험 가입"],
+    "school":         ["활동 그룹 편성", "출결·인솔 관리"],
+    "address":        ["차량 운행(픽업) 경로 안내", "우편물 발송"],
+    "email":          ["활동 결과·안내문 발송"],
+    "health":         ["활동 중 안전관리·응급대응", "급식·간식 알레르기 관리"],
+    "medication":     ["활동 중 건강관리·응급대응"],
+    "bank_account":   ["참가비 환불"],
+    "emergency_med":  ["응급상황 시 의료처치 위임"],
+    "vehicle":        ["센터 차량 이동(픽업)"],
+    "third_party":    ["보험 가입을 위한 보험사 제공", "활동 운영을 위한 체험기관 제공"],
+    "portrait":       ["활동 사진·영상의 홍보·기록 활용", "센터 SNS·소식지 게시"],
+}
+
 # 제출현황 시트의 고정 머리글: 모든 항목을 각각의 열로 둠(안 받은 항목은 빈칸)
 SUBMISSION_HEADER = (
     ["제출시각", "안내문 제목"]
@@ -400,17 +420,26 @@ else:
             "(아래 '수집·이용 목적'에 직접 적어주세요. 정식 버전에서는 암호화 보관 필요)"
         )
 
-    # 수집·이용 목적은 교사가 직접 작성 → AI가 추측하지 않고 이 내용을 그대로 사용
+    # 항목마다 '수집·이용 목적'을 하나씩 지정 → AI가 추측하지 않고 이 내용을 그대로 사용
+    purpose_parts = []
     if selected_labels or custom_labels:
-        purpose = st.text_area(
-            "📌 개인정보 수집·이용 목적 (직접 작성 — AI가 이 내용을 그대로 본문에 넣습니다)",
-            key="privacy_purpose", height=90, disabled=is_disabled,
-            placeholder="예) 아동 주민등록번호: 여행자보험 가입용 / 보호자 연락처: 비상시 연락용 / 건강정보: 활동 중 안전관리용",
-        )
-        if not purpose.strip():
-            st.caption("⚠️ 비워두면 AI가 목적을 임의로 짓지 않고 '담당 선생님 안내 예정'으로 비워둡니다.")
-    else:
-        purpose = ""
+        st.markdown("**📌 각 항목의 수집·이용 목적** (자주 쓰는 목적은 선택, 특수하면 '기타' 직접 입력)")
+        for lbl in selected_labels:
+            fid = LABEL_TO_ID[lbl]
+            opts = PURPOSE_OPTIONS.get(fid, []) + ["기타(직접 입력)"]
+            choice = st.selectbox(f"· {lbl}", opts, key=f"purpose_{fid}", disabled=is_disabled)
+            if choice == "기타(직접 입력)":
+                etc = st.text_input(f"　└ {lbl} 목적 직접 입력", key=f"purpose_etc_{fid}", disabled=is_disabled)
+                val = etc.strip()
+            else:
+                val = choice
+            if val:
+                purpose_parts.append(f"{lbl}: {val}")
+        for i, lbl in enumerate(custom_labels):
+            etc = st.text_input(f"· {lbl} 목적 직접 입력", key=f"purpose_custom_{i}", disabled=is_disabled)
+            if etc.strip():
+                purpose_parts.append(f"{lbl}: {etc.strip()}")
+    purpose = " / ".join(purpose_parts)
 
     st.markdown("---")
     st.write("### 🤖 3. AI 안내문 본문 생성")
