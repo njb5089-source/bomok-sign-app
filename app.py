@@ -32,7 +32,7 @@ def generate_announcement_with_ai(title, date, location, supplies, extra_info):
             return "❌ AI 생성 중 오류가 발생했습니다: Streamlit Secrets에 API 키가 없습니다."
 
         # 🌟 라이브러리 내부의 v1beta 고집 주소를 강제 무시하고, 구글 최신 v1 표준 주소로 직접 데이터를 던집니다.
-        url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent?key={api_key}"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
         
         prompt = f"""
         너는 보목지역아동센터의 따뜻하고 정중한 사회복지사야. 
