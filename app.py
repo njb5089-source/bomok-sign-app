@@ -3,21 +3,22 @@ import google.generativeai as genai
 from streamlit_drawable_canvas import st_canvas
 
 # =====================================================================
-# 🛠️ 1. AI 설정 및 세션 상태 초기화 (최종 수정본)
+# 🛠️ 1. AI 설정 및 세션 상태 초기화 (최종 안정화 버전)
 # =====================================================================
 API_KEY = st.secrets.get("GEMINI_API_KEY", None)
 
 if API_KEY:
     import os
+    from google.api_core.client_options import ClientOptions
+    
     os.environ["GEMINI_API_KEY"] = API_KEY
     
-    # 🔥 [핵심 추가] 404 에러와 v1beta 문제를 완벽히 해결하는 치트키 코드입니다.
-    # 구글 라이브러리가 옛날 주소로 가는 것을 막고, 최신 v1 표준 주소로 강제 연결합니다.
-    client_options = {"api_version": "v1"}
-    genai.configure(api_key=API_KEY, client_options=client_options)
+    # 🌟 정식 ClientOptions 객체를 사용하여 v1 버전을 완벽하게 지정합니다.
+    options = ClientOptions(api_version="v1")
+    genai.configure(api_key=API_KEY, client_options=options)
 else:
     st.error("⚠️ Streamlit Secrets에 'GEMINI_API_KEY'가 설정되지 않았습니다.")
-
+    
 # 세션 상태 변수 초기화
 if "preview_mode" not in st.session_state: st.session_state.preview_mode = False
 if "show_signup" not in st.session_state: st.session_state.show_signup = False
