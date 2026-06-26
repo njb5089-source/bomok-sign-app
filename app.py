@@ -39,7 +39,6 @@ def generate_announcement_with_ai(title, date, location, supplies, extra_info,
                                   collected_items=None, purpose=None):
     try:
         api_key = st.secrets.get("GEMINI_API_KEY", None)
-        url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 
         # 수집할 개인정보 항목이 있으면, 본문에 '수집·이용 목적' 안내를 포함하도록 지시
         privacy_block = ""
@@ -84,18 +83,16 @@ def generate_announcement_with_ai(title, date, location, supplies, extra_info,
         headers = {"Content-Type": "application/json", "x-goog-api-key": api_key}
         payload = {"contents": [{"parts": [{"text": prompt}]}]}
 
-        response = requests.post(url, headers=headers, json=payload, timeout=30)
-        
-        if response.status_code == 200:
-            result_json = response.json()
-            return result_json["candidates"][0]["content"]["parts"][0]["text"]
-        else:
-            backup_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
-            backup_response = requests.post(backup_url, headers=headers, json=payload, timeout=30)
-            if backup_response.status_code == 200:
-                return backup_response.json()["candidates"][0]["content"]["parts"][0]["text"]
-            else:
-                return f"❌ 구글 서버 응답 에러: {backup_response.text}"
+        # 최신 모델부터 순서대로 시도(앞 모델이 실패하면 다음으로 넘어감)
+        models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest"]
+        last_err = ""
+        for model in models:
+            api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+            resp = requests.post(api_url, headers=headers, json=payload, timeout=30)
+            if resp.status_code == 200:
+                return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+            last_err = f"[{model}] {resp.status_code} {resp.text}"
+        return f"❌ AI 생성 실패 (모든 모델 시도). 마지막 오류: {last_err}"
     except Exception as e:
         return f"❌ AI 생성 중 오류: {str(e)}"
 
