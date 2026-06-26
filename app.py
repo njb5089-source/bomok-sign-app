@@ -469,12 +469,9 @@ if current_user_mode == "parent":
     st.markdown("---")
     
     if agree:
-        if st.button("✍️ 터치하여 서명하기"):
-            st.session_state.show_signup = True
-            
-    if st.session_state.get("show_signup", False):
         st.markdown('<div class="popup-box">', unsafe_allow_html=True)
-        st.markdown("### 📱 모바일 전용 서명 패드")
+        st.markdown("### ✍️ 전자서명")
+        st.caption("아래 칸에 손가락 또는 마우스로 서명해 주세요. 전자서명은 친필 서명과 동일한 법적 효력을 가집니다.")
         canvas_result = st_canvas(
             fill_color="rgba(255, 255, 255, 0)", stroke_width=3,
             stroke_color="#000000", background_color="#F3F4F6",
@@ -507,7 +504,6 @@ if current_user_mode == "parent":
                     # 저장소 연결 전이라도 학부모 화면은 정상으로 보이게 처리
                     st.success("🎉 동의서 제출이 접수되었습니다!")
                     st.caption(f"ℹ️ (관리자 메모) 저장소 연결 대기 중: {err}")
-                st.session_state.show_signup = False
         st.markdown('</div>', unsafe_allow_html=True)
 
 
