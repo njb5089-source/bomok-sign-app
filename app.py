@@ -93,6 +93,40 @@ def generate_announcement_with_ai(title, info_items):
 # =====================================================================
 # 🔐 2-2. 개인정보 마스킹 & 구글 시트 저장 함수
 # =====================================================================
+def translate_text(text, lang_name):
+    """한국어 텍스트를 lang_name 언어로 번역합니다(다문화 학부모용). 실패 시 None."""
+    try:
+        api_key = st.secrets.get("GEMINI_API_KEY", None)
+        prompt = (
+            f"다음 한국어 가정통신문(안내문)을 {lang_name}로 자연스럽고 정중하게 번역해줘. "
+            "번역문 본문만 출력하고 다른 설명·머리말은 절대 넣지 마.\n\n" + text
+        )
+        headers = {"Content-Type": "application/json", "x-goog-api-key": api_key}
+        payload = {"contents": [{"parts": [{"text": prompt}]}]}
+        for model in ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest"]:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+            resp = requests.post(url, headers=headers, json=payload, timeout=30)
+            if resp.status_code == 200:
+                return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+        return None
+    except Exception:
+        return None
+
+
+def build_parent_summary(announcement):
+    """학부모 화면의 안내문 전체를 번역용 한 덩어리 텍스트로 모읍니다."""
+    parts = [announcement.get("title", ""), "", announcement.get("desc", "")]
+    if announcement.get("issue_date"):
+        parts.append(f"\n발행일: {announcement['issue_date']}")
+    if announcement.get("collection"):
+        parts.append("\n[개인정보 수집·이용 내역]")
+        for c in announcement["collection"]:
+            parts.append(f"- {c.get('item','')}: 이용 목적 {c.get('purpose','')}, 보유 기간 {c.get('retention','')}")
+    parts.append("\n" + LEGAL_NOTICE)
+    parts.append("\n위 내용을 모두 확인하였으며, 입력한 개인정보 수집 및 모든 항목에 동의합니다. (동의 후 전자서명으로 제출)")
+    return "\n".join(parts)
+
+
 def mask_ssn(ssn):
     """주민등록번호 뒷자리를 가립니다. 예: 970101-1****** (앞 7자리만 보관)"""
     digits = "".join(ch for ch in str(ssn) if ch.isdigit())
@@ -530,6 +564,40 @@ st.markdown("""
 if current_user_mode == "parent":
     # 교사가 확정·발송한 안내문을 구글 시트에서 불러옵니다.
     announcement = load_announcement()
+
+    # ♿ 접근성: 번역(다문화 학부모) + 크게보기(고령 학부모)
+    ac1, ac2 = st.columns([3, 2])
+    lang = ac1.selectbox(
+        "🌐 언어 / Language",
+        ["한국어", "English", "中文(중국어)", "Tiếng Việt(베트남어)", "ภาษาไทย(태국어)",
+         "Bahasa Indonesia(인니)", "Filipino(필리핀)", "русский(러시아어)", "日本語(일본어)", "Монгол(몽골어)"],
+        key="parent_lang",
+    )
+    big_view = ac2.toggle("🔍 크게 보기", key="parent_big")
+    if big_view:
+        st.markdown(
+            "<style>.main p, .main li, .main label, [data-testid='stMarkdownContainer'] *, "
+            ".stTextInput input, .stRadio label, .stCheckbox label "
+            "{ font-size: 1.25rem !important; line-height: 1.7 !important; }</style>",
+            unsafe_allow_html=True,
+        )
+
+    # 선택 언어로 안내문 전체를 AI 번역해 상단에 표시
+    if lang != "한국어" and announcement:
+        lang_name = lang.split("(")[0]
+        ckey = f"trans::{lang}::{announcement.get('title', '')}"
+        if ckey not in st.session_state:
+            with st.spinner("AI가 번역하고 있어요 / Translating..."):
+                st.session_state[ckey] = translate_text(build_parent_summary(announcement), lang_name)
+        translated = st.session_state.get(ckey)
+        with st.container(border=True):
+            if translated:
+                st.caption(f"🌐 {lang} · AI 번역본")
+                st.markdown(translated)
+            else:
+                st.warning("번역에 실패했어요. 잠시 후 다시 시도해 주세요. / Translation failed.")
+        st.caption("⬇️ 아래 한국어 양식에 입력해 제출해 주세요 / Please fill in the Korean form below.")
+
     if announcement:
         st.title(f"🌲 {announcement['title']}")
         st.caption("보목지역아동센터 가정통신문")
