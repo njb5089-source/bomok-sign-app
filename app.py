@@ -976,7 +976,7 @@ else:
         submitted_tokens = {str(s.get("대상ID")).strip() for s in subs if str(s.get("대상ID")).strip()}
         done_cnt = sum(1 for r in roster if str(r.get("대상ID")) in submitted_tokens)
         st.markdown(f"**📨 발송 대상** (제출 {done_cnt} / 전체 {len(roster)})")
-        st.caption("각 '문자 보내기'를 누르면 휴대폰 문자앱이 번호·메시지가 채워진 채로 열립니다.")
+        st.caption("번호와 메시지를 각각 복사해, 문자앱이나 카카오톡에 붙여넣어 보내세요. (상자 오른쪽 복사 버튼)")
         for r in roster:
             token = str(r.get("대상ID"))
             child, phone = r.get("아동명", ""), r.get("전화번호", "")
@@ -984,23 +984,33 @@ else:
             status = "✅ 제출완료" if done else "⏳ 미제출"
             body = (f"[보목지역아동센터] {child} 학부모님, '{ann_title}' 동의서입니다. "
                     f"아래 링크에서 작성해 주세요. {recipient_link(token)}")
-            s1, s2 = st.columns([3, 2])
-            s1.write(f"{status} · {child} ({phone})")
-            s2.markdown(f'<a href="{sms_link(phone)}">📩 문자앱 열기</a>', unsafe_allow_html=True)
-            st.code(body, language=None)
+            with st.container(border=True):
+                st.write(f"{status} · **{child}**")
+                b1, b2 = st.columns([1, 2])
+                with b1:
+                    st.caption("📱 받는 번호")
+                    st.code(phone, language=None)
+                with b2:
+                    st.caption("💬 메시지(링크 포함)")
+                    st.code(body, language=None)
 
         st.markdown("**🔔 미제출자 리마인드**")
         pending = [r for r in roster if str(r.get("대상ID")) not in submitted_tokens]
         if not pending:
             st.success("🎉 모든 대상이 제출을 완료했습니다!")
         else:
-            st.caption(f"미제출 {len(pending)}명에게 리마인드를 보낼 수 있습니다.")
+            st.caption(f"미제출 {len(pending)}명. 번호·메시지를 복사해 다시 보내세요.")
             for r in pending:
                 token = str(r.get("대상ID"))
                 child, phone = r.get("아동명", ""), r.get("전화번호", "")
                 body = (f"[보목지역아동센터] {child} 학부모님, '{ann_title}' 동의서가 아직 제출되지 않았습니다. "
                         f"작성 부탁드립니다. {recipient_link(token)}")
-                p1, p2 = st.columns([3, 2])
-                p1.write(f"⏳ {child} ({phone})")
-                p2.markdown(f'<a href="{sms_link(phone)}">🔔 문자앱 열기</a>', unsafe_allow_html=True)
-                st.code(body, language=None)
+                with st.container(border=True):
+                    st.write(f"⏳ **{child}**")
+                    b1, b2 = st.columns([1, 2])
+                    with b1:
+                        st.caption("📱 받는 번호")
+                        st.code(phone, language=None)
+                    with b2:
+                        st.caption("💬 리마인드 메시지")
+                        st.code(body, language=None)
