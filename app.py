@@ -77,7 +77,7 @@ def generate_announcement_with_ai(title, date, location, supplies, extra_info,
         - 준비물: {supplies}
         - 기타 강조사항: {extra_info}
         {privacy_block}
-        그리고 본문에 반드시 '동의서의 항목에 동의하지 않으실 경우 프로그램 참여가 어려울 수 있습니다'라는 안내를 자연스럽게 포함해줘.
+        그리고 본문에 반드시 '개인정보 수집·이용에 대한 동의를 거부할 권리가 있으며, 동의 거부 시 프로그램 참여가 제한될 수 있습니다'라는 안내를 자연스럽게 포함해줘.
         부드러운 해요체(~합니다, ~바랍니다)를 사용하고 이모지와 줄바꿈을 섞어서 작성해줘.
         """
 
@@ -334,8 +334,8 @@ if current_user_mode == "parent":
         st.markdown("**동의가 필요한 항목**")
         for item in consent_items:
             st.markdown(f"- {item}")
-    # 고정 안내 문구 (항상 표시)
-    st.warning("⚠️ 위 항목에 동의하지 않으실 경우, 프로그램 참여가 어려울 수 있습니다.")
+    # 고정 안내 문구 (동의 거부권 고지 — 항상 표시)
+    st.info("개인정보 수집·이용에 대한 동의를 거부할 권리가 있으며, 동의 거부 시 프로그램 참여가 제한될 수 있습니다.")
     agree = st.checkbox("위 내용을 모두 확인하였으며, 위 모든 항목에 동의합니다.")
     # 일괄 동의 결과를 각 동의형 항목에 반영
     for item in consent_items:
@@ -563,7 +563,7 @@ else:
             st.markdown("**동의가 필요한 항목**")
             for item in pv_consent_items:
                 st.markdown(f"- {item}")
-        st.warning("⚠️ 위 항목에 동의하지 않으실 경우, 프로그램 참여가 어려울 수 있습니다.")
+        st.info("개인정보 수집·이용에 대한 동의를 거부할 권리가 있으며, 동의 거부 시 프로그램 참여가 제한될 수 있습니다.")
         st.checkbox("[학부모 화면 예시] 위 내용을 모두 확인하였으며, 위 모든 항목에 동의합니다.", disabled=True, key="p_agree")
         st.markdown('</div>', unsafe_allow_html=True)
         st.markdown("---")
