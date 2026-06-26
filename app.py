@@ -14,17 +14,18 @@ else:
     st.error("⚠️ Streamlit Secrets에 'GEMINI_API_KEY'가 설정되지 않았습니다.")
     
 # 세션 상태 변수 초기화
-if "current_user_mode" not in st.session_state: st.session_state.current_user_mode = "teacher"  # 기본값은 교사 모드
 if "preview_mode" not in st.session_state: st.session_state.preview_mode = False
 if "show_signup" not in st.session_state: st.session_state.show_signup = False
 if "generated" not in st.session_state: st.session_state.generated = False
 if "ai_generated_desc" not in st.session_state:
     st.session_state.ai_generated_desc = "위 필수 정보를 입력한 후 버튼을 누르면 AI가 본문을 자동으로 작성합니다."
 
-# 주소 파라미터가 작동할 때를 대비한 자동 연동 (카톡 외 브라우저용)
+# 🎯 [핵심 변경] 상단 스위치 제거 후 주소 파라미터(?mode=parent)로 유저 모드 완전 자동 판정
 query_params = st.query_params
 if query_params.get("mode") == "parent":
-    st.session_state.current_user_mode = "parent"
+    current_user_mode = "parent"
+else:
+    current_user_mode = "teacher"
 
 
 # =====================================================================
@@ -86,45 +87,29 @@ st.markdown("""
         background-color: #ffffff; padding: 20px; border-radius: 12px;
         border: 2px solid #4F46E5; margin-top: 15px; box-shadow: 0px 4px 10px rgba(0,0,0,0.1);
     }
-    .url-box {
-        background-color: #E0E7FF; padding: 15px; border-radius: 8px;
-        border: 1px dashed #4F46E5; font-weight: bold; color: #3730A3; font-size: 14px; word-break: break-all;
-    }
     </style>
 """, unsafe_allow_html=True)
 
 
 # =====================================================================
-# 🔄 📱 [카톡 버그 완전 해결] 최상단 모드 전환 스위치 배치
+# 📱 [CASE 1] 학부모 전용 링크 접속 화면 (자동 판정)
 # =====================================================================
-col_mode1, col_mode2 = st.columns(2)
-with col_mode1:
-    if st.button("🛡️ 교사 관리자 화면"):
-        st.session_state.current_user_mode = "teacher"
-        st.rerun()
-with col_mode2:
-    if st.button("🌲 학부모 동의서 화면"):
-        st.session_state.current_user_mode = "parent"
-        st.rerun()
-
-st.markdown(f"**현재 상태:** {'🟢 학부모 전용 화면' if st.session_state.current_user_mode == 'parent' else '🔵 교사 작성 화면'}")
-st.markdown("---")
-
-
-# =====================================================================
-# [CASE 1] 학부모 전용 링크 접속 화면
-# =====================================================================
-if st.session_state.current_user_mode == "parent":
+if current_user_mode == "parent":
     st.title("🌲 보목지역아동센터 가정통신문")
     st.subheader("모바일 확인 및 동의서 제출")
+    
+    # 교사가 세팅한 AI 본문 출력
     st.info(st.session_state.ai_generated_desc)
+    
     st.markdown("### ⚖️ 법적 고지 및 개인정보 수집 동의")
     st.caption("본 동의서의 전자서명은 「전자문서 및 전자거래 기본법」 제4조 제1항에 의거하여 친필 서명과 동일한 법적 효력을 가집니다.")
+    
     st.warning("🤖 AI 컴플라이언스 가이드:\n야외 활동 서식으로 판정되어 보험 가입용 [주민등록번호] 수집 칸이 자동 추가되었습니다.")
     child_ssn = st.text_input("아동 주민등록번호 (보험 가입용)", placeholder="000000-0000000")
     child_name = st.text_input("아동 성명", placeholder="예: 김민준")
     parent_name = st.text_input("보호자 성명", placeholder="예: 김철수")
     parent_phone = st.text_input("보호자 연락처", placeholder="예: 010-1234-5678")
+    
     agree = st.checkbox("위 내용을 모두 확인하였으며 동의합니다.")
     st.markdown("---")
     
@@ -150,7 +135,7 @@ if st.session_state.current_user_mode == "parent":
 
 
 # =====================================================================
-# [CASE 2] 교사 포털 (관리자 기본 화면)
+# 🛡️ [CASE 2] 교사 포털 (기본 마스터 화면)
 # =====================================================================
 else:
     st.title("🛡️ 보목지역아동센터 교사 포털")
@@ -222,10 +207,10 @@ else:
         st.success("🎉 최종 시안 확인 완료! 학부모 전용 링크 시스템이 활성화되었습니다.")
         st.markdown("### 📱 학부모 발송용 카카오톡 주소")
         
-        # 주소 파라미터가 날아가도 상관없는 표준 순수 주소를 복사하게 유도합니다.
-        parent_link = "https://bomok-sign-app.streamlit.app"
+        # 🌟 포워딩 버그가 없는 무조건 열리는 100% 안전한 '진짜 긴 원본 주소'에 파라미터를 정확히 결합했습니다.
+        parent_link = "https://bomok-sign-app-ss6ipgcadtqcwembfgfskz.streamlit.app/?mode=parent"
         
-        st.info("💡 아래 상자 오른쪽 끝의 복사 버튼을 누른 뒤, 카카오톡에 붙여넣기(Ctrl+V) 하세요! 학부모님은 접속 후 상단의 '🌲 학부모 동의서 화면' 버튼을 누르면 됩니다.")
+        st.info("💡 아래 상자 오른쪽 끝의 복사 버튼을 누른 뒤, 카카오톡에 그대로 전송하세요!")
         st.code(parent_link, language="text")
         
         if st.button("🆕 새 가정통신문 작성하기"):
