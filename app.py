@@ -245,52 +245,29 @@ else:
                 st.balloons()
                 st.rerun()
 
-   # =====================================================================
-    # 🎉 4. 최종 링크 생성 완료 화면 (자동 주소 감지 및 복사 기능 추가)
+  # =====================================================================
+    # 🎉 4. 최종 링크 생성 완료 화면 (Streamlit 공식 복사 기능 적용 버전)
     # =====================================================================
     if st.session_state.get("generated", False):
         st.markdown("---")
         st.success("🎉 최종 시안 확인 완료! 학부모 전용 링크 시스템이 활성화되었습니다.")
         st.markdown("### 📱 학부모 발송용 카카오톡 주소")
-        st.info("💡 아래 버튼을 누르면 학부모 전용 동의서 링크가 자동으로 복사됩니다.")
         
-        # 🌟 현재 접속 중인 Streamlit 앱의 실제 URL 주소를 자동으로 가져옵니다.
-        # (예: https://bomok-sign-app.streamlit.app)
-        try:
-            from streamlit.components.v1 import html
-            
-            # 주소창의 실시간 URL을 파싱하여 학부모 모드(?mode=parent) 주소를 완전하게 조립합니다.
-            base_url = st.to_html
-            # 브라우저 자바스크립트를 이용해 현재 주소를 기반으로 한 완벽한 카톡용 링크를 만듭니다.
-            parent_link = f"https://bomok-sign-app.streamlit.app/?mode=parent" 
-            
-            # 🎨 화면에 주소 깔끔하게 표시하기
-            st.markdown(f'<div class="url-box" style="font-size: 16px; color: #1E40AF; text-align: center; padding: 15px; border-radius: 8px; background-color: #EFF6FF; border: 2px dashed #3B82F6; font-weight: bold; margin-bottom: 10px;">{parent_link}</div>', unsafe_allow_html=True)
-            
-            # 📋 [핵심 추가] 클릭하면 클립보드에 주소가 바로 복사되는 자바스크립트 버튼
-            copy_button_html = f"""
-                <button onclick="copyToClipboard()" style="width: 100%; background-color: #10B981; color: white; border: none; padding: 12px; font-size: 16px; font-weight: bold; border-radius: 8px; cursor: pointer; transition: 0.3s;">
-                    📋 클릭하여 카톡 발송 주소 복사하기
-                </button>
-                <script>
-                    function copyToClipboard() {{
-                        const el = document.createElement('textarea');
-                        el.value = '{parent_link}';
-                        document.body.appendChild(el);
-                        el.select();
-                        document.execCommand('copy');
-                        document.body.removeChild(el);
-                        alert('📢 학부모 전용 링크 주소가 복사되었습니다! 카카오톡 대화창에 붙여넣기(Ctrl+V) 하세요.');
-                    }}
-                </script>
-            """
-            # Streamlit 내부에 복사 버튼 컴포넌트 심기
-            html(copy_button_html, height=55)
-            
-        except Exception as e:
-            # 안전용 백업 텍스트 표시
-            st.warning("주소 자동 복사 기능을 불러오는 중 오류가 발생했습니다. 아래 주소를 수동 복사해 주세요.")
-            st.code("https://bomok-sign-app.streamlit.app/?mode=parent")
+        # 학부모 모드로 접속할 수 있는 최종 완성 주소입니다.
+        parent_link = "https://bomok-sign-app.streamlit.app/?mode=parent"
+        
+        # 🎨 1. 시각적으로 주소를 보여주는 세련된 박스
+        st.markdown(
+            f'<div class="url-box" style="font-size: 15px; color: #1E40AF; text-align: center; '
+            f'padding: 12px; border-radius: 8px; background-color: #EFF6FF; border: 2px dashed #3B82F6; '
+            f'font-weight: bold; margin-bottom: 15px; word-break: break-all;">'
+            f'{parent_link}</div>', 
+            unsafe_allow_html=True
+        )
+        
+        # 📋 2. [핵심 변경] 보안 에러 없이 무조건 복사되는 Streamlit 공식 코드 블록 버튼
+        st.info("💡 아래 우측의 복사 버튼(상자 모양 아이콘)을 누르면 주소가 즉시 복사됩니다!")
+        st.code(parent_link, language="text")
         
         st.markdown("<br>", unsafe_allow_html=True)
         if st.button("🆕 새 가정통신문 작성하기"):
