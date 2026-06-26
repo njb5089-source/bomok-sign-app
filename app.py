@@ -492,7 +492,7 @@ if current_user_mode == "parent":
             st.markdown(f"- {item}")
     # 고정 법적 고지 4종 (항상 표시 — 누락 0%)
     st.info(LEGAL_NOTICE)
-    agree = st.checkbox("위 내용을 모두 확인하였으며, 위 모든 항목에 동의합니다.")
+    agree = st.checkbox("위에 입력한 개인정보 수집 및 위 모든 항목에 동의합니다.")
     # 일괄 동의 결과를 각 동의형 항목에 반영 (예정 항목은 각자의 저장 위치에)
     for item in consent_items:
         collected[item] = "동의" if agree else "미동의"
@@ -754,7 +754,7 @@ else:
             for item in pv_consent_items:
                 st.markdown(f"- {item}")
         st.info(LEGAL_NOTICE)
-        st.checkbox("[학부모 화면 예시] 위 내용을 모두 확인하였으며, 위 모든 항목에 동의합니다.", disabled=True, key="p_agree")
+        st.checkbox("[학부모 화면 예시] 위에 입력한 개인정보 수집 및 위 모든 항목에 동의합니다.", disabled=True, key="p_agree")
         st.markdown('</div>', unsafe_allow_html=True)
         st.markdown("---")
         
