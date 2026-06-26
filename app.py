@@ -1,21 +1,16 @@
 import streamlit as st
 import google.generativeai as genai
 from streamlit_drawable_canvas import st_canvas
+import requests  # 🌟 구글 라이브러리 버그 우회를 위해 추가
 
 # =====================================================================
-# 🛠️ 1. AI 설정 및 세션 상태 초기화 (파이썬 3.14 최적화 버전)
+# 🛠️ 1. 세션 상태 초기화 및 기본 환경 변수 설정
 # =====================================================================
+# 파이썬 3.14 크래시를 방지하기 위해 라이브러리 configure는 제외하고 환경 변수만 안전하게 매핑합니다.
 API_KEY = st.secrets.get("GEMINI_API_KEY", None)
-
 if API_KEY:
     import os
-    # 🌟 시스템 자체에 구글 API v1을 쓰라고 환경 변수로 신호를 찔러줍니다.
-    # 이렇게 하면 라이브러리 내부에서 오류 없이 알아서 최신 주소로 찾아갑니다.
     os.environ["GEMINI_API_KEY"] = API_KEY
-    os.environ["GOOGLE_API_VERSION"] = "v1" 
-    
-    # 괄호 안에 복잡한 옵션들을 전부 다 빼고, 가장 기본형으로만 실행합니다.
-    genai.configure(api_key=API_KEY)
 else:
     st.error("⚠️ Streamlit Secrets에 'GEMINI_API_KEY'가 설정되지 않았습니다.")
     
@@ -28,13 +23,17 @@ if "ai_generated_desc" not in st.session_state:
 
 
 # =====================================================================
-# 🤖 2. AI 본문 자동 작성 함수 정의
+# 🤖 2. AI 본문 자동 작성 함수 정의 (API 다이렉트 통신 우회 방식)
 # =====================================================================
 def generate_announcement_with_ai(title, date, location, supplies, extra_info):
     try:
-        # 주소가 v1으로 고정되었으므로 원래 쓰려던 표준 모델명을 적어줍니다.
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        api_key = st.secrets.get("GEMINI_API_KEY", None)
+        if not api_key:
+            return "❌ AI 생성 중 오류가 발생했습니다: Streamlit Secrets에 API 키가 없습니다."
 
+        # 🌟 라이브러리 내부의 v1beta 고집 주소를 강제 무시하고, 구글 최신 v1 표준 주소로 직접 데이터를 던집니다.
+        url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={api_key}"
+        
         prompt = f"""
         너는 보목지역아동센터의 따뜻하고 정중한 사회복지사야. 
         아래 제공된 정보를 바탕으로 학부모님들께 모바일로 발송할 '가정통신문 안내문 본문'을 멋지게 작성해줘.
@@ -48,9 +47,26 @@ def generate_announcement_with_ai(title, date, location, supplies, extra_info):
         
         부드러운 해요체(~합니다, ~바랍니다)를 사용하고 이모지와 줄바꿈을 섞어서 작성해줘.
         """
+
+        headers = {"Content-Type": "application/json"}
+        payload = {
+            "contents": [
+                {
+                    "parts": [{"text": prompt}]
+                }
+            ]
+        }
+
+        # 실제로 구글 API 본진 서버에 데이터 전송
+        response = requests.post(url, headers=headers, json=payload, timeout=30)
         
-        response = model.generate_content(prompt)
-        return response.text
+        if response.status_code == 200:
+            result_json = response.json()
+            # 정상적인 데이터인 경우 생성된 텍스트만 추출
+            return result_json["candidates"][0]["content"]["parts"][0]["text"]
+        else:
+            return f"❌ 구글 서버 응답 에러 (코드 {response.status_code}): {response.text}"
+
     except Exception as e:
         return f"❌ AI 생성 중 오류가 발생했습니다: {str(e)}"
 
@@ -158,6 +174,7 @@ else:
             with st.spinner("Gemini AI가 멋진 가정통신문을 작성하고 있습니다..."):
                 generated_text = generate_announcement_with_ai(title, date, location, supplies, extra_info)
                 st.session_state.ai_generated_desc = generated_text
+                st.rerun()  # 🌟 생성 직후 화면에 즉시 갱신하도록 추가
     
     # AI가 작성한 결과를 보여주고 교사가 수정도 가능한 상자
     desc = st.text_area(
