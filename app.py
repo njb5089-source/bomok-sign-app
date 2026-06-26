@@ -469,14 +469,17 @@ PURPOSE_OPTIONS = {
     "portrait":       ["활동 사진·영상의 홍보·기록 활용", "센터 SNS·소식지 게시"],
 }
 
-# 항목별 '보유 기간' 자주 쓰는 보기 (드롭다운). 마지막에 '기타' 자동 추가됨
-RETENTION_OPTIONS = [
-    "프로그램 종료 후 1년",
-    "수집일로부터 1년",
-    "동의 철회 또는 목적 달성 시까지",
-    "관계 법령에 따른 보존기간",
-    "프로그램 종료 시 즉시 파기",
-]
+# 항목별 보유 기간 — 관련 법령 기준으로 고정 적용(교사가 매번 고르지 않음)
+DEFAULT_RETENTION = "프로그램 종료 후 1년 (이후 지체 없이 파기)"
+RETENTION_DEFAULTS = {
+    "child_ssn":     "보험계약 만료 후 1년 (보험금 청구 가능 기간, 상법 제662조 등)",
+    "bank_account":  "환불 처리 후 5년 (전자상거래 등에서의 소비자보호에 관한 법률 제6조)",
+    "health":        "프로그램 종료 후 1년",
+    "medication":    "프로그램 종료 후 1년",
+    "emergency_med": "프로그램 종료 후 1년",
+    "portrait":      "동의 철회 시까지 (홍보물 게시 종료 시 파기)",
+    "third_party":   "제공 목적 달성 시까지",
+}
 
 # 제출현황 시트의 고정 머리글: 모든 항목을 각각의 열로 둠(안 받은 항목은 빈칸)
 SUBMISSION_HEADER = (
@@ -831,26 +834,17 @@ else:
 
     purpose_parts = []
     if selected_labels or custom_labels:
-        st.markdown("**📌 각 항목의 수집·이용 목적 & 보유 기간** (자주 쓰는 값 선택, 특수하면 '기타')")
+        st.markdown("**📌 각 항목의 수집·이용 목적** (보유 기간은 관련 법령 기준으로 자동 적용)")
         for lbl in selected_labels:
             fid = LABEL_TO_ID[lbl]
-            st.markdown(f"**· {lbl}**")
-            pc1, pc2 = st.columns(2)
-            with pc1:
-                pval = _pick("수집·이용 목적", PURPOSE_OPTIONS.get(fid, []), f"purpose_{fid}")
-            with pc2:
-                rval = _pick("보유 기간", RETENTION_OPTIONS, f"ret_{fid}")
-            if pval or rval:
-                purpose_parts.append(f"{lbl} — 목적: {pval or '미입력'} / 보유기간: {rval or '미입력'}")
+            ret = RETENTION_DEFAULTS.get(fid, DEFAULT_RETENTION)
+            pval = _pick(f"· {lbl} 수집·이용 목적", PURPOSE_OPTIONS.get(fid, []), f"purpose_{fid}")
+            st.caption(f"　└ 보유기간(자동): {ret}")
+            purpose_parts.append(f"{lbl} — 목적: {pval or '미입력'} / 보유기간: {ret}")
         for i, lbl in enumerate(custom_labels):
-            st.markdown(f"**· {lbl}**")
-            cc1, cc2 = st.columns(2)
-            with cc1:
-                pval = st.text_input("수집·이용 목적", key=f"purpose_custom_{i}", disabled=is_disabled).strip()
-            with cc2:
-                rval = _pick("보유 기간", RETENTION_OPTIONS, f"ret_custom_{i}")
-            if pval or rval:
-                purpose_parts.append(f"{lbl} — 목적: {pval or '미입력'} / 보유기간: {rval or '미입력'}")
+            pval = st.text_input(f"· {lbl} 수집·이용 목적", key=f"purpose_custom_{i}", disabled=is_disabled).strip()
+            st.caption(f"　└ 보유기간(자동): {DEFAULT_RETENTION}")
+            purpose_parts.append(f"{lbl} — 목적: {pval or '미입력'} / 보유기간: {DEFAULT_RETENTION}")
     purpose = " / ".join(purpose_parts)
 
     st.markdown("---")
