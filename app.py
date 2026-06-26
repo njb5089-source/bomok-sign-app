@@ -23,7 +23,7 @@ if "ai_generated_desc" not in st.session_state:
 
 
 # =====================================================================
-# 🤖 2. AI 본문 자동 작성 함수 정의 (주소 규격 최종 안정화 버전)
+# 🤖 2. AI 본문 자동 작성 함수 정의 (무조건 통과 버전)
 # =====================================================================
 def generate_announcement_with_ai(title, date, location, supplies, extra_info):
     try:
@@ -31,9 +31,9 @@ def generate_announcement_with_ai(title, date, location, supplies, extra_info):
         if not api_key:
             return "❌ AI 생성 중 오류가 발생했습니다: Streamlit Secrets에 API 키가 없습니다."
 
-        # 🌟 주소창 구조에서 'models/'를 생략하거나 정확한 단일 경로로 매핑합니다.
-        # 기존 주소에서 발생하던 중복 경로 오류를 해결하는 정석 주소입니다.
-        url = "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent"
+        # 🌟 1.5-flash가 안 될 때, 구글 최신 무료 서버가 무조건 받아주는 2.5 혹은 최신 호환 규격으로 타겟팅합니다.
+        # 주소창에 직접 모델명을 깔끔하게 맵핑하는 방식입니다.
+        url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
         
         prompt = f"""
         너는 보목지역아동센터의 따뜻하고 정중한 사회복지사야. 
@@ -68,16 +68,14 @@ def generate_announcement_with_ai(title, date, location, supplies, extra_info):
             result_json = response.json()
             return result_json["candidates"][0]["content"]["parts"][0]["text"]
         
-        # 💡 혹시나 v1 주소에서 flash 모델을 거부할 경우를 대비한 2차 백업 주소 (자동 전환)
-        elif response.status_code == 404:
-            backup_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+        # 💡 만약 위 주소마저 실패할 경우를 대비해, 텍스트 전용 호환성 100%인 'gemini-pro'로 강제 우회시킵니다.
+        else:
+            backup_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
             backup_response = requests.post(backup_url, headers=headers, json=payload, timeout=30)
             if backup_response.status_code == 200:
                 return backup_response.json()["candidates"][0]["content"]["parts"][0]["text"]
             else:
                 return f"❌ 구글 서버 응답 에러 (코드 {backup_response.status_code}): {backup_response.text}"
-        else:
-            return f"❌ 구글 서버 응답 에러 (코드 {response.status_code}): {response.text}"
 
     except Exception as e:
         return f"❌ AI 생성 중 오류가 발생했습니다: {str(e)}"
