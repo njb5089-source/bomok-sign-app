@@ -40,44 +40,23 @@ else:
 # =====================================================================
 # 🤖 2. AI 본문 자동 작성 함수 정의
 # =====================================================================
-def generate_announcement_with_ai(title, info_items,
-                                  collected_items=None, purpose=None):
+def generate_announcement_with_ai(title, info_items):
     try:
         api_key = st.secrets.get("GEMINI_API_KEY", None)
-
-        # 수집할 개인정보 항목이 있으면, 본문에 '수집·이용 목적' 안내를 포함하도록 지시
-        privacy_block = ""
-        if collected_items:
-            items_text = ", ".join(collected_items)
-            purpose_text = (purpose or "").strip()
-            if purpose_text:
-                purpose_rule = (
-                    "각 항목의 수집·이용 목적과 보유기간은 반드시 아래 담당자가 적은 내용을 그대로 사용하고, "
-                    f"네가 임의로 추측하거나 지어내지 마. 항목별로 목적과 보유기간을 명확히 안내해줘:\n        \"{purpose_text}\""
-                )
-            else:
-                purpose_rule = (
-                    "수집·이용 목적/보유기간이 입력되지 않았으니 절대 임의로 지어내지 말고, "
-                    "'[수집·이용 목적 및 보유기간: 담당 선생님이 별도 안내 예정]'이라고 그대로 표시할 것."
-                )
-            privacy_block = f"""
-        [이번 동의서에서 수집하는 개인정보 항목]
-        {items_text}
-        - 본문 안에 어떤 정보를 왜 받는지 1~2문장으로 자연스럽게 안내해줘.
-        - {purpose_rule}
-        """
 
         info_lines = "\n".join(f"        - {lbl}: {val}" for lbl, val in (info_items or []) if (lbl or val))
 
         prompt = f"""
         너는 보목지역아동센터의 따뜻하고 정중한 사회복지사야.
-        아래 제공된 정보를 바탕으로 학부모님들께 모바일로 발송할 '가정통신문 안내문 본문'을 멋지게 작성해줘.
+        아래 제공된 정보를 바탕으로 학부모님들께 모바일로 발송할 '안내문 본문'을 멋지게 작성해줘.
 
         [입력 정보]
-        - 프로그램 제목: {title}
+        - 제목: {title}
 {info_lines}
-        {privacy_block}
-        ※ 개인정보 수집·파기, 만 14세 미만 법정대리인 동의 등 '공식 법적 고지문'은 시스템이 동의서 하단에 별도로 자동 표시하니, 너는 그 부분을 작성하지 말고 따뜻하고 정중한 프로그램 안내에 집중해줘.
+
+        ※ 개인정보 수집 항목·이용 목적·보유 기간, 만 14세 미만 법정대리인 동의, 동의 거부권 등
+        모든 '법적 고지문'은 시스템이 안내문 하단에 표와 안내문으로 자동 첨부하니,
+        너는 그 부분을 절대 작성하지 말고 프로그램 자체 안내(취지·일정·준비물·참여 안내 등)에만 집중해줘.
         부드러운 해요체(~합니다, ~바랍니다)를 사용하고 이모지와 줄바꿈을 섞어서 작성해줘.
         """
 
@@ -387,10 +366,10 @@ def publish_announcement(data):
         except gspread.WorksheetNotFound:
             ws = sh.add_worksheet(title="발송안내문", rows=10, cols=10)
         ws.clear()
-        ws.append_row(["title", "desc", "is_outdoor", "fields", "custom_fields"])
+        ws.append_row(["title", "desc", "is_outdoor", "fields", "custom_fields", "collection"])
         ws.append_row([
             data["title"], data["desc"], "Y" if data["is_outdoor"] else "N",
-            data.get("fields", ""), data.get("custom_fields", ""),
+            data.get("fields", ""), data.get("custom_fields", ""), data.get("collection", ""),
         ])
         return True, None
     except Exception as e:
@@ -411,6 +390,11 @@ def load_announcement():
                 rec["custom_questions"] = cq if isinstance(cq, list) else []
             except Exception:
                 rec["custom_questions"] = []
+            try:
+                cd = json.loads(rec.get("collection", "") or "[]")
+                rec["collection"] = cd if isinstance(cd, list) else []
+            except Exception:
+                rec["collection"] = []
             return rec
         return None
     except Exception:
@@ -600,6 +584,13 @@ if current_user_mode == "parent":
         st.markdown("**동의가 필요한 항목**")
         for item in all_consent_items:
             st.markdown(f"- {item}")
+    # 개인정보 수집·이용 내역 표 (선택된 항목만 · 보유기간은 법령 기준 고정)
+    if announcement and announcement.get("collection"):
+        st.markdown("**📑 개인정보 수집·이용 내역**")
+        st.table([
+            {"수집 항목": c.get("item", ""), "이용 목적": c.get("purpose", ""), "보유 기간": c.get("retention", "")}
+            for c in announcement["collection"]
+        ])
     # 고정 법적 고지 4종 (항상 표시 — 누락 0%)
     st.info(LEGAL_NOTICE)
     agree = st.checkbox("위 내용을 모두 확인하였으며, 위에 입력한 개인정보 수집 및 위 모든 항목에 동의합니다.")
@@ -832,7 +823,7 @@ else:
             return st.text_input(f"　└ {label} 직접 입력", key=f"{key}_etc", disabled=is_disabled).strip()
         return choice
 
-    purpose_parts = []
+    collection_details = []   # 하단 고정 표(수집 항목/목적/보유기간)에 들어갈 내역
     if selected_labels or custom_labels:
         st.markdown("**📌 각 항목의 수집·이용 목적** (보유 기간은 관련 법령 기준으로 자동 적용)")
         for lbl in selected_labels:
@@ -840,12 +831,11 @@ else:
             ret = RETENTION_DEFAULTS.get(fid, DEFAULT_RETENTION)
             pval = _pick(f"· {lbl} 수집·이용 목적", PURPOSE_OPTIONS.get(fid, []), f"purpose_{fid}")
             st.caption(f"　└ 보유기간(자동): {ret}")
-            purpose_parts.append(f"{lbl} — 목적: {pval or '미입력'} / 보유기간: {ret}")
+            collection_details.append({"item": lbl, "purpose": pval or "-", "retention": ret})
         for i, lbl in enumerate(custom_labels):
             pval = st.text_input(f"· {lbl} 수집·이용 목적", key=f"purpose_custom_{i}", disabled=is_disabled).strip()
             st.caption(f"　└ 보유기간(자동): {DEFAULT_RETENTION}")
-            purpose_parts.append(f"{lbl} — 목적: {pval or '미입력'} / 보유기간: {DEFAULT_RETENTION}")
-    purpose = " / ".join(purpose_parts)
+            collection_details.append({"item": lbl, "purpose": pval or "-", "retention": DEFAULT_RETENTION})
 
     st.markdown("---")
     st.write("### 🤖 3. AI 안내문 본문 생성")
@@ -854,10 +844,7 @@ else:
     if not st.session_state.preview_mode:
         if st.button("🪄 AI 안내문 초안 자동 생성하기"):
             with st.spinner("Gemini AI가 멋진 가정통신문을 작성하고 있습니다..."):
-                collected_items = [FIELDS_BY_ID[i]["label"] for i in selected_ids] + custom_labels
-                generated_text = generate_announcement_with_ai(
-                    title, info_items_data, collected_items, purpose
-                )
+                generated_text = generate_announcement_with_ai(title, info_items_data)
                 st.session_state.ai_generated_desc = generated_text
                 st.rerun()
 
@@ -922,6 +909,12 @@ else:
             st.markdown("**동의가 필요한 항목**")
             for item in pv_consent_items:
                 st.markdown(f"- {item}")
+        if collection_details:
+            st.markdown("**📑 개인정보 수집·이용 내역**")
+            st.table([
+                {"수집 항목": c["item"], "이용 목적": c["purpose"], "보유 기간": c["retention"]}
+                for c in collection_details
+            ])
         st.info(LEGAL_NOTICE)
         st.checkbox("[학부모 화면 예시] 위 내용을 모두 확인하였으며, 위에 입력한 개인정보 수집 및 위 모든 항목에 동의합니다.", disabled=True, key="p_agree")
         st.markdown('</div>', unsafe_allow_html=True)
@@ -939,6 +932,7 @@ else:
                     "title": title, "desc": desc, "is_outdoor": is_outdoor,
                     "fields": ",".join(selected_ids),
                     "custom_fields": json.dumps(custom_questions_defs, ensure_ascii=False),
+                    "collection": json.dumps(collection_details, ensure_ascii=False),
                 })
                 st.session_state.publish_error = None if ok else err
                 st.session_state.generated = True
