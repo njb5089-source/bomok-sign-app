@@ -175,7 +175,11 @@ def load_announcement():
             rec = records[0]
             rec["is_outdoor"] = (str(rec.get("is_outdoor", "")).strip().upper() == "Y")
             rec["field_ids"] = [x for x in str(rec.get("fields", "")).split(",") if x]
-            rec["custom_labels"] = [x.strip() for x in str(rec.get("custom_fields", "")).split(",") if x.strip()]
+            try:
+                cq = json.loads(rec.get("custom_fields", "") or "[]")
+                rec["custom_questions"] = cq if isinstance(cq, list) else []
+            except Exception:
+                rec["custom_questions"] = []
             return rec
         return None
     except Exception:
@@ -286,7 +290,6 @@ if current_user_mode == "parent":
 
     # 교사가 선택한 항목만 입력란을 자동으로 만들어 줍니다.
     collected = {}          # 라벨 -> 시트에 저장할 값
-    has_sensitive = False
     for fid in field_ids:
         f = FIELDS_BY_ID.get(fid)
         if not f:
@@ -295,25 +298,34 @@ if current_user_mode == "parent":
             agreed = st.checkbox(f"{f['label']}에 동의합니다", key=f"pf_{fid}")
             collected[f["label"]] = "동의" if agreed else "미동의"
         elif f["type"] == "ssn":
-            has_sensitive = True
-            raw = st.text_input(f"{f['label']} (보험 가입용)", placeholder=f["ph"], key=f"pf_{fid}")
+            raw = st.text_input(f["label"], placeholder=f["ph"], key=f"pf_{fid}")
             collected[f["label"]] = mask_ssn(raw)       # 주민번호는 마스킹해서만 저장
         elif f["type"] == "account":
-            has_sensitive = True
             raw = st.text_input(f["label"], placeholder=f["ph"], key=f"pf_{fid}")
             collected[f["label"]] = mask_account(raw)   # 계좌번호도 마스킹해서만 저장
         else:
             raw = st.text_input(f["label"], placeholder=f.get("ph", ""), key=f"pf_{fid}")
             collected[f["label"]] = raw
 
-    # 교사가 직접 추가한 특수 항목들
-    custom_labels = announcement.get("custom_labels", []) if announcement else []
+    # 교사가 구글 폼처럼 구성한 직접 추가 질문들
+    custom_questions = announcement.get("custom_questions", []) if announcement else []
     custom_collected = {}
-    for i, lbl in enumerate(custom_labels):
-        custom_collected[lbl] = st.text_input(lbl, key=f"pf_custom_{i}")
-
-    if has_sensitive:
-        st.caption("🔒 주민등록번호·계좌번호 등 민감정보는 일부를 가린 채(마스킹) 안전하게 저장됩니다.")
+    for i, q in enumerate(custom_questions):
+        lbl = q.get("label", "")
+        if not lbl:
+            continue
+        qtype = q.get("type", "직접 기입")
+        if qtype == "체크박스":
+            checked = st.checkbox(lbl, key=f"pf_custom_{i}")
+            custom_collected[lbl] = "예" if checked else "아니오"
+        elif qtype == "객관식":
+            opts = [o.strip() for o in str(q.get("options", "")).split(",") if o.strip()]
+            if opts:
+                custom_collected[lbl] = st.radio(lbl, opts, key=f"pf_custom_{i}")
+            else:
+                custom_collected[lbl] = st.text_input(lbl, key=f"pf_custom_{i}")
+        else:
+            custom_collected[lbl] = st.text_input(lbl, key=f"pf_custom_{i}")
 
     st.markdown("### ⚖️ 법적 고지 및 개인정보 수집 동의")
     st.caption("본 동의서의 전자서명은 「전자문서 및 전자거래 기본법」 제4조 제1항에 의거하여 친필 서명과 동일한 법적 효력을 가집니다.")
@@ -396,13 +408,48 @@ else:
     )
     selected_ids = ALWAYS_IDS + [LABEL_TO_ID[lbl] for lbl in selected_labels]
 
-    # 직접 추가(커스텀) 항목 — 목록에 없는 특수 정보를 교사가 직접 적습니다.
-    custom_raw = st.text_input(
-        "➕ 직접 추가할 항목 (여러 개는 쉼표로 구분)",
-        key="custom_fields_raw", disabled=is_disabled,
-        placeholder="예: 수영 가능 여부, 종교, 비상시 추가 보호자",
-    )
-    custom_labels = [x.strip() for x in custom_raw.split(",") if x.strip()]
+    # 직접 추가 질문 빌더 — 구글 폼처럼 질문을 1개씩 추가하고 형식을 고릅니다.
+    st.markdown("**➕ 직접 추가 질문** (목록에 없는 항목을 구글 폼처럼 직접 구성)")
+    if "custom_questions" not in st.session_state:
+        st.session_state.custom_questions = []
+    if "next_qid" not in st.session_state:
+        st.session_state.next_qid = 1
+    if not is_disabled and st.button("➕ 질문 추가"):
+        st.session_state.custom_questions.append({"id": st.session_state.next_qid})
+        st.session_state.next_qid += 1
+        st.rerun()
+
+    QTYPES = ["직접 기입", "체크박스", "객관식"]
+    remove_id = None
+    for q in st.session_state.custom_questions:
+        qid = q["id"]
+        c1, c2, c3 = st.columns([5, 3, 1])
+        c1.text_input("질문", key=f"cq_label_{qid}", disabled=is_disabled, placeholder="예: 수영 가능 여부")
+        qtype = c2.selectbox("형식", QTYPES, key=f"cq_type_{qid}", disabled=is_disabled)
+        if not is_disabled and c3.button("🗑", key=f"cq_del_{qid}"):
+            remove_id = qid
+        if qtype == "객관식":
+            st.text_input("　└ 선택지 (쉼표로 구분)", key=f"cq_opts_{qid}", disabled=is_disabled,
+                          placeholder="예: 가능, 불가능, 보호자 동행 시 가능")
+    if remove_id is not None:
+        st.session_state.custom_questions = [
+            qq for qq in st.session_state.custom_questions if qq["id"] != remove_id
+        ]
+        st.rerun()
+
+    # 작성된 질문(라벨이 있는 것만)을 정의로 모읍니다.
+    custom_questions_defs = []
+    for q in st.session_state.custom_questions:
+        qid = q["id"]
+        lbl = st.session_state.get(f"cq_label_{qid}", "").strip()
+        if not lbl:
+            continue
+        custom_questions_defs.append({
+            "label": lbl,
+            "type": st.session_state.get(f"cq_type_{qid}", "직접 기입"),
+            "options": st.session_state.get(f"cq_opts_{qid}", ""),
+        })
+    custom_labels = [q["label"] for q in custom_questions_defs]
 
     # 상황별 자동 경고/권고
     is_water = any(k in location for k in ["바다", "해변", "해수욕", "물놀이", "수영", "계곡", "갯벌", "항", "섬"])
@@ -488,8 +535,15 @@ else:
                     tag = " (마스킹 저장)"
                 st.text_input(f"[학부모 화면 예시] {f['label']}{tag}",
                               placeholder=f.get("ph", ""), disabled=True, key=f"pv_{fid}")
-        for i, lbl in enumerate(custom_labels):
-            st.text_input(f"[학부모 화면 예시] {lbl} (직접 추가)", disabled=True, key=f"pv_custom_{i}")
+        for i, q in enumerate(custom_questions_defs):
+            lbl = q["label"]
+            if q["type"] == "체크박스":
+                st.checkbox(f"[학부모 화면 예시] {lbl}", disabled=True, key=f"pv_custom_{i}")
+            elif q["type"] == "객관식":
+                opts = [o.strip() for o in str(q.get("options", "")).split(",") if o.strip()] or ["(선택지 미입력)"]
+                st.radio(f"[학부모 화면 예시] {lbl}", opts, disabled=True, key=f"pv_custom_{i}")
+            else:
+                st.text_input(f"[학부모 화면 예시] {lbl} (직접 추가)", disabled=True, key=f"pv_custom_{i}")
         st.markdown("##### ⚖️ 법적 고지 및 개인정보 수집 동의")
         st.caption("본 동의서의 전자서명은 친필 서명과 동일한 법적 효력을 가집니다.")
         st.checkbox("[학부모 화면 예시] 위 내용을 모두 확인하였으며 동의합니다.", disabled=True, key="p_agree")
@@ -508,7 +562,7 @@ else:
                     "title": title, "date": date, "location": location,
                     "supplies": supplies, "desc": desc, "is_outdoor": is_outdoor,
                     "fields": ",".join(selected_ids),
-                    "custom_fields": ",".join(custom_labels),
+                    "custom_fields": json.dumps(custom_questions_defs, ensure_ascii=False),
                 })
                 st.session_state.publish_error = None if ok else err
                 st.session_state.generated = True
