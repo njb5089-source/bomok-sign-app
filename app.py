@@ -116,6 +116,86 @@ def mask_account(acc):
     return "(미입력 또는 형식 오류)"
 
 
+# =====================================================================
+# 🧩 분할 입력 도우미 — 정해진 칸 형식으로 개인정보를 입력받습니다.
+# =====================================================================
+def _sep(text):
+    """입력칸 사이의 구분 기호/단위(- , 년, 월 등)를 가운데에 표시"""
+    st.markdown(f"<div style='text-align:center'>{text}</div>", unsafe_allow_html=True)
+
+
+def _input_phone(label, key_prefix, disabled=False):
+    """전화번호: [010]-[1234]-[5678] 3칸"""
+    st.markdown(f"**{label}**")
+    c1, d1, c2, d2, c3 = st.columns([4, 1, 5, 1, 5], vertical_alignment="center")
+    p1 = c1.text_input(label, key=f"{key_prefix}_1", max_chars=3, placeholder="010",
+                       label_visibility="collapsed", disabled=disabled)
+    with d1:
+        _sep("-")
+    p2 = c2.text_input(label + " 2", key=f"{key_prefix}_2", max_chars=4, placeholder="1234",
+                       label_visibility="collapsed", disabled=disabled)
+    with d2:
+        _sep("-")
+    p3 = c3.text_input(label + " 3", key=f"{key_prefix}_3", max_chars=4, placeholder="5678",
+                       label_visibility="collapsed", disabled=disabled)
+    parts = [p1.strip(), p2.strip(), p3.strip()]
+    return "-".join(p for p in parts if p)
+
+
+def _input_birth(label, key_prefix, disabled=False):
+    """생년월일: [2015]년 [03]월 [01]일 3칸"""
+    st.markdown(f"**{label}**")
+    c1, l1, c2, l2, c3, l3 = st.columns([4, 1, 3, 1, 3, 1], vertical_alignment="center")
+    y = c1.text_input(label, key=f"{key_prefix}_y", max_chars=4, placeholder="2015",
+                      label_visibility="collapsed", disabled=disabled)
+    with l1:
+        _sep("년")
+    m = c2.text_input(label + " 월", key=f"{key_prefix}_m", max_chars=2, placeholder="03",
+                      label_visibility="collapsed", disabled=disabled)
+    with l2:
+        _sep("월")
+    d = c3.text_input(label + " 일", key=f"{key_prefix}_d", max_chars=2, placeholder="01",
+                      label_visibility="collapsed", disabled=disabled)
+    with l3:
+        _sep("일")
+    y, m, d = y.strip(), m.strip(), d.strip()
+    return f"{y}년 {m}월 {d}일" if (y or m or d) else ""
+
+
+def _input_ssn(label, key_prefix, disabled=False):
+    """주민등록번호: [앞 6자리]-[뒤 7자리] 2칸 (저장 시 마스킹)"""
+    st.markdown(f"**{label}**")
+    c1, d1, c2 = st.columns([5, 1, 6], vertical_alignment="center")
+    front = c1.text_input(label, key=f"{key_prefix}_f", max_chars=6, placeholder="앞 6자리",
+                          label_visibility="collapsed", disabled=disabled)
+    with d1:
+        _sep("-")
+    back = c2.text_input(label + " 뒤", key=f"{key_prefix}_b", max_chars=7, placeholder="뒤 7자리",
+                         label_visibility="collapsed", disabled=disabled)
+    return mask_ssn(f"{front}{back}")
+
+
+def _input_school(label, key_prefix, disabled=False):
+    """소속 학교·학년: [보목초등]학교 [3]학년"""
+    st.markdown(f"**{label}**")
+    c1, l1, c2, l2 = st.columns([5, 1, 3, 1], vertical_alignment="center")
+    sch = c1.text_input(label, key=f"{key_prefix}_s", placeholder="예: 보목초등",
+                        label_visibility="collapsed", disabled=disabled)
+    with l1:
+        _sep("학교")
+    grade = c2.text_input(label + " 학년", key=f"{key_prefix}_g", max_chars=2, placeholder="3",
+                          label_visibility="collapsed", disabled=disabled)
+    with l2:
+        _sep("학년")
+    sch, grade = sch.strip(), grade.strip()
+    parts = []
+    if sch:
+        parts.append(f"{sch}학교")
+    if grade:
+        parts.append(f"{grade}학년")
+    return " ".join(parts)
+
+
 def _open_spreadsheet():
     """구글 시트에 인증하고 스프레드시트를 엽니다."""
     scopes = ["https://www.googleapis.com/auth/spreadsheets"]
@@ -293,17 +373,26 @@ if current_user_mode == "parent":
         f = FIELDS_BY_ID.get(fid)
         if not f:
             continue
+        lbl = f["label"]
         if f["type"] == "consent":
-            consent_items.append(f["label"])
-        elif f["type"] == "ssn":
-            raw = st.text_input(f["label"], placeholder=f["ph"], key=f"pf_{fid}")
-            collected[f["label"]] = mask_ssn(raw)       # 주민번호는 마스킹해서만 저장
+            consent_items.append(lbl)
+        elif fid in ("guardian_phone", "emergency"):
+            collected[lbl] = _input_phone(lbl, f"pf_{fid}")
+        elif fid == "child_gender":
+            collected[lbl] = st.radio(lbl, ["남", "여"], key=f"pf_{fid}",
+                                      horizontal=True, index=None) or ""
+        elif fid == "child_birth":
+            collected[lbl] = _input_birth(lbl, f"pf_{fid}")
+        elif fid == "child_ssn":
+            collected[lbl] = _input_ssn(lbl, f"pf_{fid}")        # 마스킹해서만 저장
+        elif fid == "school":
+            collected[lbl] = _input_school(lbl, f"pf_{fid}")
         elif f["type"] == "account":
-            raw = st.text_input(f["label"], placeholder=f["ph"], key=f"pf_{fid}")
-            collected[f["label"]] = mask_account(raw)   # 계좌번호도 마스킹해서만 저장
+            raw = st.text_input(lbl, placeholder=f["ph"], key=f"pf_{fid}")
+            collected[lbl] = mask_account(raw)                   # 계좌번호도 마스킹해서만 저장
         else:
-            raw = st.text_input(f["label"], placeholder=f.get("ph", ""), key=f"pf_{fid}")
-            collected[f["label"]] = raw
+            raw = st.text_input(lbl, placeholder=f.get("ph", ""), key=f"pf_{fid}")
+            collected[lbl] = raw
 
     # 교사가 구글 폼처럼 구성한 직접 추가 질문들
     custom_questions = announcement.get("custom_questions", []) if announcement else []
@@ -563,15 +652,22 @@ else:
             f = FIELDS_BY_ID.get(fid)
             if not f:
                 continue
+            lbl = f["label"]
             if f["type"] == "consent":
-                pv_consent_items.append(f["label"])
+                pv_consent_items.append(lbl)
+            elif fid in ("guardian_phone", "emergency"):
+                _input_phone(lbl, f"pv_{fid}", disabled=True)
+            elif fid == "child_gender":
+                st.radio(lbl, ["남", "여"], key=f"pv_{fid}", horizontal=True, index=None, disabled=True)
+            elif fid == "child_birth":
+                _input_birth(lbl, f"pv_{fid}", disabled=True)
+            elif fid == "child_ssn":
+                _input_ssn(lbl, f"pv_{fid}", disabled=True)
+            elif fid == "school":
+                _input_school(lbl, f"pv_{fid}", disabled=True)
             else:
-                tag = ""
-                if f["type"] == "ssn":
-                    tag = " (마스킹 저장)"
-                elif f["type"] == "account":
-                    tag = " (마스킹 저장)"
-                st.text_input(f"[학부모 화면 예시] {f['label']}{tag}",
+                tag = " (마스킹 저장)" if f["type"] == "account" else ""
+                st.text_input(f"[학부모 화면 예시] {lbl}{tag}",
                               placeholder=f.get("ph", ""), disabled=True, key=f"pv_{fid}")
         for i, q in enumerate(custom_questions_defs):
             lbl = q["label"]
