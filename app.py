@@ -515,6 +515,8 @@ if current_user_mode == "parent":
     if announcement:
         st.title(f"🌲 {announcement['title']}")
         st.caption("보목지역아동센터 가정통신문")
+        if announcement.get("issue_date"):
+            st.caption(f"📅 발행일: {announcement['issue_date']}")
         st.info(announcement["desc"])
         field_ids = announcement.get("field_ids") or ALWAYS_IDS
     else:
@@ -859,8 +861,12 @@ else:
         st.markdown('<div class="preview-container">', unsafe_allow_html=True)
         st.markdown(f"### 🌲 {title}")
         st.caption("보목지역아동센터 가정통신문")
-        desc = st.text_area("상세 안내 문구 (바로 수정 가능)", value=st.session_state.ai_generated_desc, height=250)
+        if issue_str:
+            st.caption(f"📅 발행일: {issue_str}")
+        desc = st.text_area("✏️ 상세 안내 문구 (여기서 수정)", value=st.session_state.ai_generated_desc, height=250)
         st.session_state.ai_generated_desc = desc
+        st.caption("👁 아래는 학부모 화면에서 실제로 보이는 모습입니다 (줄바꿈·레이아웃 확인용)")
+        st.info(desc)
         st.markdown("##### 📋 학부모가 입력하게 될 항목")
         # 교사가 선택한 항목 그대로 미리보기에 표시 (동의형은 일괄 동의로 모음)
         pv_consent_items = []
