@@ -493,18 +493,29 @@ LEGAL_NOTICE = """\
 # =====================================================================
 st.markdown("""
     <style>
-    .main .block-container { max-width: 500px; padding-top: 1rem; }
+    .main .block-container { max-width: 560px; padding-top: 1rem; padding-left: 0.9rem; padding-right: 0.9rem; }
     div.stButton > button {
         background-color: #4F46E5; color: white; width: 100%; padding: 12px;
         border-radius: 8px; border: none; font-weight: bold; font-size: 16px;
     }
+    /* 분할 입력(연락처·생년월일 등) 칸 사이 간격을 좁혀 좁은 폰에서도 안 잘리게 */
+    div[data-testid="stHorizontalBlock"] { gap: 0.35rem; }
+    /* 입력칸이 칸 폭을 넘지 않도록 */
+    div[data-testid="stTextInput"] input { min-width: 0; }
+    .preview-container, .popup-box { max-width: 100%; box-sizing: border-box; overflow-x: hidden; }
     .preview-container {
-        background-color: #F9FAFB; padding: 20px; border-radius: 16px;
+        background-color: #F9FAFB; padding: 16px; border-radius: 16px;
         border: 3px solid #10B981; margin-top: 15px; box-shadow: 0px 6px 15px rgba(0,0,0,0.05);
     }
     .popup-box {
-        background-color: #ffffff; padding: 20px; border-radius: 12px;
+        background-color: #ffffff; padding: 16px; border-radius: 12px;
         border: 2px solid #4F46E5; margin-top: 15px; box-shadow: 0px 4px 10px rgba(0,0,0,0.1);
+    }
+    /* 아주 좁은 폰(≤380px)에서는 여백·패딩을 더 줄임 */
+    @media (max-width: 400px) {
+        .main .block-container { padding-left: 0.5rem; padding-right: 0.5rem; }
+        .preview-container, .popup-box { padding: 12px; }
+        div[data-testid="stHorizontalBlock"] { gap: 0.2rem; }
     }
     </style>
 """, unsafe_allow_html=True)
@@ -617,7 +628,7 @@ if current_user_mode == "parent":
         canvas_result = st_canvas(
             fill_color="rgba(255, 255, 255, 0)", stroke_width=3,
             stroke_color="#000000", background_color="#F3F4F6",
-            height=150, width=350, drawing_mode="freedraw", key="canvas_parent"
+            height=160, width=300, drawing_mode="freedraw", key="canvas_parent"
         )
         if st.button("✅ 서명 완료 및 최종 제출하기"):
             has_sign = (
