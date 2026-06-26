@@ -473,7 +473,7 @@ PURPOSE_OPTIONS = {
 
 # 제출현황 시트의 고정 머리글: 모든 항목을 각각의 열로 둠(안 받은 항목은 빈칸)
 SUBMISSION_HEADER = (
-    ["제출시각", "안내문 제목", "대상ID"]
+    ["제출시각", "안내문 제목"]
     + [f["label"] for f in PRIVACY_FIELDS]
     + ["기타 입력 항목", "동의 여부", "서명", "서명이미지"]
 )
@@ -527,24 +527,6 @@ if current_user_mode == "parent":
         st.caption("보목지역아동센터 가정통신문")
         st.warning("아직 선생님이 확정·발송한 안내문이 없습니다. 잠시 후 다시 확인해 주세요.")
         field_ids = ALWAYS_IDS + ["guardian_phone"]
-
-    # 개별 링크(?to=토큰)로 들어온 경우, 명단 정보로 이름·연락처를 미리 채웁니다.
-    recipient_token = query_params.get("to", "")
-    if recipient_token and st.session_state.get("prefilled_to") != recipient_token:
-        entry = get_roster_entry(recipient_token)
-        if entry:
-            st.session_state["pf_child_name"] = entry.get("아동명", "")
-            st.session_state["pf_guardian_name"] = entry.get("보호자명", "")
-            digits = "".join(ch for ch in str(entry.get("전화번호", "")) if ch.isdigit())
-            if len(digits) >= 10:
-                st.session_state["pf_guardian_phone_1"] = digits[:3]
-                st.session_state["pf_guardian_phone_2"] = digits[3:-4]
-                st.session_state["pf_guardian_phone_3"] = digits[-4:]
-        st.session_state["prefilled_to"] = recipient_token
-    if recipient_token:
-        entry = get_roster_entry(recipient_token)
-        if entry:
-            st.success(f"👋 {entry.get('아동명','')} 학부모님을 위한 맞춤 동의서입니다.")
 
     st.markdown("---")
     st.subheader("📝 동의서 작성 및 제출")
@@ -645,7 +627,6 @@ if current_user_mode == "parent":
                 row = [
                     datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     announcement["title"] if announcement else "(안내문 없음)",
-                    recipient_token,
                 ]
                 row += [collected.get(f["label"], "") for f in PRIVACY_FIELDS]
                 row += [custom_str, "동의함", "서명 완료", sig_b64]
@@ -1011,7 +992,18 @@ else:
                 st.session_state[f"sel_{str(r.get('대상ID'))}"] = False
             st.rerun()
 
-        # 아동 명단 (체크박스)
+        # 제출 명단과 자동 대조 (아동 이름 / 보호자 번호 기준)
+        subs = load_submissions() or []
+        sub_names = {str(s.get("아동 성명", "")).strip() for s in subs if str(s.get("아동 성명", "")).strip()}
+        sub_phones = {"".join(ch for ch in str(s.get("보호자 연락처", "")) if ch.isdigit()) for s in subs}
+        sub_phones.discard("")
+
+        def _submitted(r):
+            nm = str(r.get("아동명", "")).strip()
+            ph = "".join(ch for ch in str(r.get("전화번호", "")) if ch.isdigit())
+            return bool((nm and nm in sub_names) or (ph and ph in sub_phones))
+
+        # 아동 명단 (체크박스 + 제출 여부)
         st.markdown("**▢ 아동 명단 선택**")
         for r in roster:
             token = str(r.get("대상ID"))
@@ -1019,10 +1011,20 @@ else:
             grade = r.get("학년", "")
             guardian = r.get("보호자명", "")
             phone = mask_phone(r.get("전화번호", ""))
-            st.checkbox(f"{name} ({grade}) ─ 보호자: {guardian} ({phone})", key=f"sel_{token}")
+            mark = "✅" if _submitted(r) else "⏳"
+            st.checkbox(f"{mark} {name} ({grade}) ─ 보호자: {guardian} ({phone})", key=f"sel_{token}")
 
-        # 선택 정보 요약
-        selected_tokens = [str(r.get("대상ID")) for r in roster
-                           if st.session_state.get(f"sel_{str(r.get('대상ID'))}")]
-        st.session_state["selected_tokens"] = selected_tokens   # 이후 단계(링크/추적)에서 사용
-        st.success(f"📋 총 {len(roster)}명 중 **{len(selected_tokens)}명** 선택됨")
+        # 선택 정보 요약 + 제출 현황(선택 대상 기준)
+        selected = [r for r in roster if st.session_state.get(f"sel_{str(r.get('대상ID'))}")]
+        st.session_state["selected_tokens"] = [str(r.get("대상ID")) for r in selected]
+        done = [r for r in selected if _submitted(r)]
+        pending = [r for r in selected if not _submitted(r)]
+        st.success(
+            f"📋 총 {len(roster)}명 중 **{len(selected)}명 선택** · "
+            f"✅ 제출 {len(done)} / ⏳ 미제출 {len(pending)}"
+        )
+        if pending:
+            st.markdown("**⏳ 미제출 명단 (선택 대상 중)** — 이 아동들에게 다시 안내하세요")
+            st.write("  ·  ".join(f"{r.get('아동명','')}({r.get('학년','')})" for r in pending))
+        if st.button("🔄 제출 현황 새로고침"):
+            st.rerun()
