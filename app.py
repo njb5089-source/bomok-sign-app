@@ -84,6 +84,14 @@ def mask_ssn(ssn):
     return "(미입력 또는 형식 오류)"
 
 
+def mask_account(acc):
+    """계좌번호 가운데를 가립니다. 예: 110****6789 (앞 3·뒤 4자리만 보관)"""
+    digits = "".join(ch for ch in str(acc) if ch.isdigit())
+    if len(digits) >= 7:
+        return f"{digits[:3]}{'*' * (len(digits) - 7)}{digits[-4:]}"
+    return "(미입력 또는 형식 오류)"
+
+
 def _open_spreadsheet():
     """구글 시트에 인증하고 스프레드시트를 엽니다."""
     scopes = ["https://www.googleapis.com/auth/spreadsheets"]
@@ -121,11 +129,11 @@ def publish_announcement(data):
         except gspread.WorksheetNotFound:
             ws = sh.add_worksheet(title="발송안내문", rows=10, cols=10)
         ws.clear()
-        ws.append_row(["title", "date", "location", "supplies", "desc", "is_outdoor", "fields"])
+        ws.append_row(["title", "date", "location", "supplies", "desc", "is_outdoor", "fields", "custom_fields"])
         ws.append_row([
             data["title"], data["date"], data["location"],
             data["supplies"], data["desc"], "Y" if data["is_outdoor"] else "N",
-            data.get("fields", ""),
+            data.get("fields", ""), data.get("custom_fields", ""),
         ])
         return True, None
     except Exception as e:
@@ -141,6 +149,7 @@ def load_announcement():
             rec = records[0]
             rec["is_outdoor"] = (str(rec.get("is_outdoor", "")).strip().upper() == "Y")
             rec["field_ids"] = [x for x in str(rec.get("fields", "")).split(",") if x]
+            rec["custom_labels"] = [x.strip() for x in str(rec.get("custom_fields", "")).split(",") if x.strip()]
             return rec
         return None
     except Exception:
@@ -153,26 +162,37 @@ def load_announcement():
 # always=True 항목은 어떤 동의서든 항상 수집합니다(아동·보호자 식별용).
 # type: text(일반 입력), ssn(주민번호=마스킹 저장), consent(동의 체크)
 PRIVACY_FIELDS = [
-    {"id": "child_name",     "label": "아동 성명",             "type": "text",    "ph": "예: 김민준",        "always": True},
-    {"id": "guardian_name",  "label": "보호자 성명",           "type": "text",    "ph": "예: 김철수",        "always": True},
-    {"id": "guardian_phone", "label": "보호자 연락처",         "type": "text",    "ph": "예: 010-1234-5678", "always": False},
-    {"id": "child_ssn",      "label": "아동 주민등록번호",     "type": "ssn",     "ph": "000000-0000000",    "always": False},
-    {"id": "child_birth",    "label": "아동 생년월일",         "type": "text",    "ph": "예: 2015-03-01",    "always": False},
-    {"id": "address",        "label": "주소",                  "type": "text",    "ph": "예: 서귀포시 ...",  "always": False},
-    {"id": "emergency",      "label": "비상 연락처",           "type": "text",    "ph": "예: 010-...",       "always": False},
-    {"id": "health",         "label": "건강·알레르기 특이사항", "type": "text",    "ph": "예: 땅콩 알레르기",  "always": False},
-    {"id": "portrait",       "label": "초상권(사진·영상) 활용", "type": "consent", "ph": "",                  "always": False},
+    {"id": "child_name",     "label": "아동 성명",                 "type": "text",    "ph": "예: 김민준",         "always": True},
+    {"id": "guardian_name",  "label": "보호자 성명",               "type": "text",    "ph": "예: 김철수",         "always": True},
+    {"id": "guardian_rel",   "label": "보호자와의 관계",           "type": "text",    "ph": "예: 부 / 모 / 조모",  "always": False},
+    {"id": "guardian_phone", "label": "보호자 연락처",             "type": "text",    "ph": "예: 010-1234-5678",  "always": False},
+    {"id": "emergency",      "label": "비상 연락처",               "type": "text",    "ph": "예: 010-...",        "always": False},
+    {"id": "child_gender",   "label": "아동 성별",                 "type": "text",    "ph": "예: 남 / 여",         "always": False},
+    {"id": "child_birth",    "label": "아동 생년월일",             "type": "text",    "ph": "예: 2015-03-01",     "always": False},
+    {"id": "child_ssn",      "label": "아동 주민등록번호",         "type": "ssn",     "ph": "000000-0000000",     "always": False},
+    {"id": "school",         "label": "소속 학교·학년",            "type": "text",    "ph": "예: ○○초 3학년",     "always": False},
+    {"id": "address",        "label": "주소",                      "type": "text",    "ph": "예: 서귀포시 ...",   "always": False},
+    {"id": "email",          "label": "이메일",                    "type": "text",    "ph": "예: abc@naver.com",  "always": False},
+    {"id": "health",         "label": "건강·알레르기 특이사항",     "type": "text",    "ph": "예: 땅콩 알레르기",   "always": False},
+    {"id": "medication",     "label": "복용 중인 약",              "type": "text",    "ph": "예: 천식 흡입제",     "always": False},
+    {"id": "bank_account",   "label": "환불 계좌번호",             "type": "account", "ph": "예: 110-123-456789", "always": False},
+    {"id": "emergency_med",  "label": "응급의료 처치 위임 동의",    "type": "consent", "ph": "",                   "always": False},
+    {"id": "vehicle",        "label": "차량 탑승 동의",            "type": "consent", "ph": "",                   "always": False},
+    {"id": "third_party",    "label": "개인정보 제3자(보험사 등) 제공 동의", "type": "consent", "ph": "",          "always": False},
+    {"id": "portrait",       "label": "초상권(사진·영상) 활용 동의", "type": "consent", "ph": "",                  "always": False},
 ]
 FIELDS_BY_ID = {f["id"]: f for f in PRIVACY_FIELDS}
 LABEL_TO_ID = {f["label"]: f["id"] for f in PRIVACY_FIELDS}
 ALWAYS_IDS = [f["id"] for f in PRIVACY_FIELDS if f["always"]]
 OPTIONAL_FIELDS = [f for f in PRIVACY_FIELDS if not f["always"]]
+# 민감정보로 분류되어 수집 시 경고가 필요한 항목들
+SENSITIVE_IDS = {"child_ssn", "bank_account", "health", "medication"}
 
 # 제출현황 시트의 고정 머리글: 모든 항목을 각각의 열로 둠(안 받은 항목은 빈칸)
 SUBMISSION_HEADER = (
     ["제출시각", "안내문 제목"]
     + [f["label"] for f in PRIVACY_FIELDS]
-    + ["동의 여부", "서명"]
+    + ["기타 입력 항목", "동의 여부", "서명"]
 )
 
 
@@ -231,13 +251,23 @@ if current_user_mode == "parent":
         elif f["type"] == "ssn":
             has_sensitive = True
             raw = st.text_input(f"{f['label']} (보험 가입용)", placeholder=f["ph"], key=f"pf_{fid}")
-            collected[f["label"]] = mask_ssn(raw)   # 주민번호는 마스킹해서만 저장
+            collected[f["label"]] = mask_ssn(raw)       # 주민번호는 마스킹해서만 저장
+        elif f["type"] == "account":
+            has_sensitive = True
+            raw = st.text_input(f["label"], placeholder=f["ph"], key=f"pf_{fid}")
+            collected[f["label"]] = mask_account(raw)   # 계좌번호도 마스킹해서만 저장
         else:
             raw = st.text_input(f["label"], placeholder=f.get("ph", ""), key=f"pf_{fid}")
             collected[f["label"]] = raw
 
+    # 교사가 직접 추가한 특수 항목들
+    custom_labels = announcement.get("custom_labels", []) if announcement else []
+    custom_collected = {}
+    for i, lbl in enumerate(custom_labels):
+        custom_collected[lbl] = st.text_input(lbl, key=f"pf_custom_{i}")
+
     if has_sensitive:
-        st.caption("🔒 주민등록번호 등 민감정보는 뒷자리를 가린 채(마스킹) 안전하게 저장됩니다.")
+        st.caption("🔒 주민등록번호·계좌번호 등 민감정보는 일부를 가린 채(마스킹) 안전하게 저장됩니다.")
 
     st.markdown("### ⚖️ 법적 고지 및 개인정보 수집 동의")
     st.caption("본 동의서의 전자서명은 「전자문서 및 전자거래 기본법」 제4조 제1항에 의거하여 친필 서명과 동일한 법적 효력을 가집니다.")
@@ -269,12 +299,13 @@ if current_user_mode == "parent":
                 st.error("⚠️ 서명란에 직접 서명을 해주세요.")
             else:
                 # 머리글 순서에 맞춰 각 항목을 해당 열에 채워 넣습니다.
+                custom_str = " | ".join(f"{lbl}: {val}" for lbl, val in custom_collected.items() if val)
                 row = [
                     datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     announcement["title"] if announcement else "(안내문 없음)",
                 ]
                 row += [collected.get(f["label"], "") for f in PRIVACY_FIELDS]
-                row += ["동의함", "서명 완료"]
+                row += [custom_str, "동의함", "서명 완료"]
                 ok, err = save_to_gsheet(row)
                 if ok:
                     st.success("🎉 보목지역아동센터 동의서 제출이 완료되었습니다!")
@@ -332,6 +363,30 @@ else:
     )
     selected_ids = ALWAYS_IDS + [LABEL_TO_ID[lbl] for lbl in selected_labels]
 
+    # 직접 추가(커스텀) 항목 — 목록에 없는 특수 정보를 교사가 직접 적습니다.
+    custom_raw = st.text_input(
+        "➕ 직접 추가할 항목 (여러 개는 쉼표로 구분)",
+        key="custom_fields_raw", disabled=is_disabled,
+        placeholder="예: 수영 가능 여부, 종교, 비상시 추가 보호자",
+    )
+    custom_labels = [x.strip() for x in custom_raw.split(",") if x.strip()]
+
+    # 상황별 자동 경고/권고
+    is_water = any(k in location for k in ["바다", "해변", "해수욕", "물놀이", "수영", "계곡", "갯벌", "항", "섬"])
+    is_overnight = any(k in location for k in ["1박", "2박", "캠프", "캠핑", "숙박", "야영", "수련"])
+    if is_water:
+        st.warning("🌊 수상·물놀이 활동으로 보입니다 → '응급의료 처치 위임 동의'와 안전 항목(예: 수영 가능 여부)을 권장합니다.")
+    if is_overnight:
+        st.warning("🏕️ 숙박 활동으로 보입니다 → '복용 중인 약', '비상 연락처', '응급의료 처치 위임 동의'를 권장합니다.")
+    if "child_ssn" in selected_ids and "third_party" not in selected_ids:
+        st.warning("📑 주민등록번호는 보통 보험사 등에 제공됩니다 → '개인정보 제3자 제공 동의'도 함께 받으세요.")
+    sensitive_picked = [FIELDS_BY_ID[i]["label"] for i in selected_ids if i in SENSITIVE_IDS]
+    if sensitive_picked:
+        st.warning(
+            "🔒 민감정보(" + ", ".join(sensitive_picked) + ") 수집 → 수집 목적을 본문에 명시하고, "
+            "정식 버전에서는 암호화 보관이 필요합니다."
+        )
+
     if not st.session_state.preview_mode:
         st.markdown("---")
         if st.button("🔍 학부모용 서식 시안 미리보기"):
@@ -354,9 +409,15 @@ else:
             if f["type"] == "consent":
                 st.checkbox(f"[학부모 화면 예시] {f['label']}에 동의합니다", disabled=True, key=f"pv_{fid}")
             else:
-                tag = " (보험 가입용·마스킹 저장)" if f["type"] == "ssn" else ""
+                tag = ""
+                if f["type"] == "ssn":
+                    tag = " (보험 가입용·마스킹 저장)"
+                elif f["type"] == "account":
+                    tag = " (마스킹 저장)"
                 st.text_input(f"[학부모 화면 예시] {f['label']}{tag}",
                               placeholder=f.get("ph", ""), disabled=True, key=f"pv_{fid}")
+        for i, lbl in enumerate(custom_labels):
+            st.text_input(f"[학부모 화면 예시] {lbl} (직접 추가)", disabled=True, key=f"pv_custom_{i}")
         st.markdown("##### ⚖️ 법적 고지 및 개인정보 수집 동의")
         st.caption("본 동의서의 전자서명은 친필 서명과 동일한 법적 효력을 가집니다.")
         st.checkbox("[학부모 화면 예시] 위 내용을 모두 확인하였으며 동의합니다.", disabled=True, key="p_agree")
@@ -375,6 +436,7 @@ else:
                     "title": title, "date": date, "location": location,
                     "supplies": supplies, "desc": desc, "is_outdoor": is_outdoor,
                     "fields": ",".join(selected_ids),
+                    "custom_fields": ",".join(custom_labels),
                 })
                 st.session_state.publish_error = None if ok else err
                 st.session_state.generated = True
