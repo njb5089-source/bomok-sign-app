@@ -650,17 +650,27 @@ else:
 
     if "info_title" not in st.session_state:
         st.session_state.info_title = "섶섬 생태 탐방 및 자리돔 낚시 체험"
-    title = st.text_input("동의서 제목", key="info_title", disabled=is_disabled)
+    title = st.text_input("제목", key="info_title", disabled=is_disabled)
+
+    # 참여 대상 — 중복 선택 가능. 아래 '참여 대상 선택/제출 확인'과 연동됩니다.
+    if "target_categories" not in st.session_state:
+        st.session_state.target_categories = ["초등 저학년"]
+    target_cats = st.multiselect(
+        "참여 대상 (여러 그룹 선택 가능 · 아래 제출 확인과 연동)",
+        ["초등 저학년", "초등 고학년", "중등부"],
+        key="target_categories", disabled=is_disabled,
+    )
 
     # 기본 정보 항목 빌더 — 항목을 추가/삭제할 수 있습니다.
     if "info_items" not in st.session_state:
         st.session_state.info_iid = 0
         st.session_state.info_items = []
         for lbl, val in [
+            ("발행 주체", "보목지역아동센터"),
             ("일시", "2026년 7월 11일(토) 09:00 ~ 16:00"),
-            ("참여 대상", "초등 저학년"),
             ("장소", "섶섬 일대 및 서귀포 보목항"),
             ("준비물", "편한 복장, 운동화, 개인 물병, 모자"),
+            ("문의 연락처", "보목지역아동센터 ☎ 064-000-0000"),
             ("기타 강조 사항", "센터 차량을 이용하며 안전요원이 동행합니다."),
         ]:
             iid = st.session_state.info_iid
@@ -695,6 +705,8 @@ else:
         val = st.session_state.get(f"info_value_{iid}", "").strip()
         if lbl or val:
             info_items_data.append((lbl, val))
+    if target_cats:
+        info_items_data.insert(0, ("참여 대상", ", ".join(target_cats)))
 
     # 야외/수상/숙박 자동 감지는 모든 입력 내용에서 키워드를 찾습니다.
     all_info_text = " ".join(v for _, v in info_items_data)
@@ -1017,18 +1029,16 @@ else:
     elif not roster:
         st.info("위에서 센터 아동을 먼저 등록해 주세요.")
     else:
-        # 퀵 선택 버튼 — 해당 그룹을 한 번에 체크
-        st.caption("퀵 선택 — 누르면 해당 그룹 아동이 한 번에 체크됩니다.")
-        qc = st.columns(5)
-        quick_map = [("전체", None), ("초등 저학년", "초등 저학년"),
-                     ("초등 고학년", "초등 고학년"), ("중등부", "중등부")]
-        for idx, (label, cat) in enumerate(quick_map):
-            if qc[idx].button(label, key=f"quick_{idx}", use_container_width=True):
-                for r in roster:
-                    if cat is None or grade_category(r.get("학년", "")) == cat:
-                        st.session_state[f"sel_{str(r.get('대상ID'))}"] = True
-                st.rerun()
-        if qc[4].button("전체 해제", key="quick_clear", use_container_width=True):
+        # 위 '참여 대상' 그룹과 연동 — 버튼 한 번으로 해당 그룹 자동 체크
+        target_cats = st.session_state.get("target_categories", [])
+        st.caption(f"위에서 정한 참여 대상: **{', '.join(target_cats) if target_cats else '(미지정)'}**")
+        qc1, qc2 = st.columns(2)
+        if qc1.button("✅ 참여 대상 그룹 자동 체크", use_container_width=True):
+            for r in roster:
+                if grade_category(r.get("학년", "")) in target_cats:
+                    st.session_state[f"sel_{str(r.get('대상ID'))}"] = True
+            st.rerun()
+        if qc2.button("전체 해제", key="quick_clear", use_container_width=True):
             for r in roster:
                 st.session_state[f"sel_{str(r.get('대상ID'))}"] = False
             st.rerun()
