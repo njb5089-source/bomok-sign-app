@@ -7,6 +7,7 @@ import json
 import time
 import io
 import base64
+import urllib.parse
 import gspread
 from google.oauth2.service_account import Credentials
 from PIL import Image
@@ -279,6 +280,81 @@ def load_submissions():
         return None
 
 
+# =====================================================================
+# 👨‍👩‍👧 참여 대상(명단) 관리 + 개별 발송 링크
+# =====================================================================
+PARENT_BASE = "https://bomok-sign-app-hpapp9ikgcxqthmdv6wlgp4.streamlit.app/?mode=parent"
+ROSTER_HEADER = ["대상ID", "아동명", "보호자명", "전화번호"]
+
+
+def load_roster():
+    """'명단' 탭의 참여 대상 목록을 불러옵니다. (시트 연결 실패 시 None, 없으면 [])"""
+    try:
+        sh = _open_spreadsheet()
+        try:
+            ws = sh.worksheet("명단")
+        except gspread.WorksheetNotFound:
+            return []
+        return ws.get_all_records()
+    except Exception:
+        return None
+
+
+def add_roster_entry(child, guardian, phone):
+    """참여 대상 1명을 '명단' 탭에 추가하고 고유 토큰을 부여합니다."""
+    try:
+        sh = _open_spreadsheet()
+        try:
+            ws = sh.worksheet("명단")
+        except gspread.WorksheetNotFound:
+            ws = sh.add_worksheet(title="명단", rows=300, cols=len(ROSTER_HEADER))
+        if not ws.get_all_values():
+            ws.append_row(ROSTER_HEADER)
+        token = "R" + datetime.datetime.now().strftime("%y%m%d%H%M%S%f")  # 문자형 고유 토큰
+        ws.append_row([token, child, guardian, phone])
+        return True, None
+    except Exception as e:
+        return False, str(e)
+
+
+def delete_roster_entry(token):
+    """토큰으로 명단에서 한 명을 삭제합니다."""
+    try:
+        ws = _open_spreadsheet().worksheet("명단")
+        vals = ws.get_all_values()
+        for idx, row in enumerate(vals):
+            if idx == 0:
+                continue
+            if row and str(row[0]) == str(token):
+                ws.delete_rows(idx + 1)
+                break
+        return True, None
+    except Exception as e:
+        return False, str(e)
+
+
+def get_roster_entry(token):
+    """토큰에 해당하는 명단 항목(아동명/보호자명/전화번호)을 찾습니다."""
+    roster = load_roster()
+    if not roster:
+        return None
+    for r in roster:
+        if str(r.get("대상ID")) == str(token):
+            return r
+    return None
+
+
+def recipient_link(token):
+    """특정 대상 전용 개별 링크"""
+    return f"{PARENT_BASE}&to={token}"
+
+
+def sms_link(phone, body):
+    """휴대폰 문자앱을 번호·내용 채운 채로 여는 sms: 링크"""
+    digits = "".join(ch for ch in str(phone) if ch.isdigit())
+    return f"sms:{digits}?body={urllib.parse.quote(body)}"
+
+
 def publish_announcement(data):
     """교사가 확정한 안내문을 '발송안내문' 탭에 저장합니다. 학부모 화면이 이걸 읽어갑니다."""
     try:
@@ -373,7 +449,7 @@ PURPOSE_OPTIONS = {
 
 # 제출현황 시트의 고정 머리글: 모든 항목을 각각의 열로 둠(안 받은 항목은 빈칸)
 SUBMISSION_HEADER = (
-    ["제출시각", "안내문 제목"]
+    ["제출시각", "안내문 제목", "대상ID"]
     + [f["label"] for f in PRIVACY_FIELDS]
     + ["기타 입력 항목", "동의 여부", "서명", "서명이미지"]
 )
@@ -427,6 +503,24 @@ if current_user_mode == "parent":
         st.caption("보목지역아동센터 가정통신문")
         st.warning("아직 선생님이 확정·발송한 안내문이 없습니다. 잠시 후 다시 확인해 주세요.")
         field_ids = ALWAYS_IDS + ["guardian_phone"]
+
+    # 개별 링크(?to=토큰)로 들어온 경우, 명단 정보로 이름·연락처를 미리 채웁니다.
+    recipient_token = query_params.get("to", "")
+    if recipient_token and st.session_state.get("prefilled_to") != recipient_token:
+        entry = get_roster_entry(recipient_token)
+        if entry:
+            st.session_state["pf_child_name"] = entry.get("아동명", "")
+            st.session_state["pf_guardian_name"] = entry.get("보호자명", "")
+            digits = "".join(ch for ch in str(entry.get("전화번호", "")) if ch.isdigit())
+            if len(digits) >= 10:
+                st.session_state["pf_guardian_phone_1"] = digits[:3]
+                st.session_state["pf_guardian_phone_2"] = digits[3:-4]
+                st.session_state["pf_guardian_phone_3"] = digits[-4:]
+        st.session_state["prefilled_to"] = recipient_token
+    if recipient_token:
+        entry = get_roster_entry(recipient_token)
+        if entry:
+            st.success(f"👋 {entry.get('아동명','')} 학부모님을 위한 맞춤 동의서입니다.")
 
     st.markdown("---")
     st.subheader("📝 동의서 작성 및 제출")
@@ -527,6 +621,7 @@ if current_user_mode == "parent":
                 row = [
                     datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     announcement["title"] if announcement else "(안내문 없음)",
+                    recipient_token,
                 ]
                 row += [collected.get(f["label"], "") for f in PRIVACY_FIELDS]
                 row += [custom_str, "동의함", "서명 완료", sig_b64]
@@ -833,3 +928,74 @@ else:
                             st.caption("⚠️ 서명 이미지를 불러오지 못했습니다.")
                     else:
                         st.caption("서명 이미지 없음(구버전 제출)")
+
+    # =====================================================================
+    # 👨‍👩‍👧 참여 대상 관리 + 개별 발송 + 미제출 리마인드
+    # =====================================================================
+    st.markdown("---")
+    st.write("### 👨‍👩‍👧 참여 대상 관리 및 개별 발송")
+    st.caption("참여 아동을 명단에 등록해두면, 대상을 골라 개별 맞춤 링크를 문자로 보낼 수 있습니다.")
+
+    # (1) 명단 등록 / 관리
+    with st.expander("➕ 참여 대상(명단) 등록 / 관리", expanded=False):
+        with st.form("roster_add", clear_on_submit=True):
+            rc1, rc2, rc3 = st.columns(3)
+            new_child = rc1.text_input("아동명")
+            new_guardian = rc2.text_input("보호자명")
+            new_phone = rc3.text_input("전화번호", placeholder="01012345678")
+            if st.form_submit_button("명단에 추가"):
+                if new_child and new_phone:
+                    ok, err = add_roster_entry(new_child, new_guardian, new_phone)
+                    st.success(f"'{new_child}' 추가됨") if ok else st.error(f"추가 실패: {err}")
+                else:
+                    st.warning("아동명과 전화번호는 필수입니다.")
+        _roster = load_roster()
+        if _roster:
+            st.caption(f"등록 인원: {len(_roster)}명")
+            for r in _roster:
+                token = r.get("대상ID")
+                d1, d2 = st.columns([6, 1])
+                d1.write(f"- {r.get('아동명','')} / {r.get('보호자명','')} / {r.get('전화번호','')}")
+                if d2.button("🗑", key=f"del_roster_{token}"):
+                    delete_roster_entry(token)
+                    st.rerun()
+
+    # (2) 발송 + (3) 제출 추적 + (4) 리마인드
+    roster = load_roster()
+    if roster is None:
+        st.error("명단을 불러오지 못했습니다. (시트 연결 확인)")
+    elif not roster:
+        st.info("위에서 참여 대상을 먼저 등록해 주세요.")
+    else:
+        ann = load_announcement()
+        ann_title = ann.get("title") if ann else "가정통신문"
+        subs = load_submissions() or []
+        submitted_tokens = {str(s.get("대상ID")).strip() for s in subs if str(s.get("대상ID")).strip()}
+        done_cnt = sum(1 for r in roster if str(r.get("대상ID")) in submitted_tokens)
+        st.markdown(f"**📨 발송 대상** (제출 {done_cnt} / 전체 {len(roster)})")
+        st.caption("각 '문자 보내기'를 누르면 휴대폰 문자앱이 번호·메시지가 채워진 채로 열립니다.")
+        for r in roster:
+            token = str(r.get("대상ID"))
+            child, phone = r.get("아동명", ""), r.get("전화번호", "")
+            done = token in submitted_tokens
+            status = "✅ 제출완료" if done else "⏳ 미제출"
+            body = (f"[보목지역아동센터] {child} 학부모님, '{ann_title}' 동의서입니다. "
+                    f"아래 링크에서 작성해 주세요.\n{recipient_link(token)}")
+            s1, s2 = st.columns([3, 2])
+            s1.write(f"{status} · {child} ({phone})")
+            s2.markdown(f'<a href="{sms_link(phone, body)}">📩 문자 보내기</a>', unsafe_allow_html=True)
+
+        st.markdown("**🔔 미제출자 리마인드**")
+        pending = [r for r in roster if str(r.get("대상ID")) not in submitted_tokens]
+        if not pending:
+            st.success("🎉 모든 대상이 제출을 완료했습니다!")
+        else:
+            st.caption(f"미제출 {len(pending)}명에게 리마인드를 보낼 수 있습니다.")
+            for r in pending:
+                token = str(r.get("대상ID"))
+                child, phone = r.get("아동명", ""), r.get("전화번호", "")
+                body = (f"[보목지역아동센터] {child} 학부모님, '{ann_title}' 동의서가 아직 제출되지 않았습니다. "
+                        f"잊지 마시고 작성 부탁드립니다.\n{recipient_link(token)}")
+                p1, p2 = st.columns([3, 2])
+                p1.write(f"⏳ {child} ({phone})")
+                p2.markdown(f'<a href="{sms_link(phone, body)}">🔔 리마인드 문자</a>', unsafe_allow_html=True)
