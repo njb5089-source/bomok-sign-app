@@ -204,7 +204,7 @@ else:
         st.success("🎉 최종 시안 확인 완료! 학부모 전용 링크 시스템이 활성화되었습니다.")
         st.markdown("### 📱 학부모 발송용 카카오톡 주소")
         
-        parent_link = "https://bomok-sign-app-ss6ipgcadtqcwembfgfskz.streamlit.app/?mode=parent"
+        parent_link = "https://bomok-sign-app-hpapp9ikgcxqthmdv6wlgp4.streamlit.app/?mode=parent"
         
         st.info("💡 아래 상자 오른쪽 끝의 복사 버튼을 누른 뒤, 카카오톡에 전송해 보세요!")
         st.code(parent_link, language="text")
