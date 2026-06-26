@@ -4,6 +4,7 @@ from streamlit_drawable_canvas import st_canvas
 import requests
 import datetime
 import json
+import time
 import gspread
 from google.oauth2.service_account import Credentials
 
@@ -83,16 +84,25 @@ def generate_announcement_with_ai(title, date, location, supplies, extra_info,
         headers = {"Content-Type": "application/json", "x-goog-api-key": api_key}
         payload = {"contents": [{"parts": [{"text": prompt}]}]}
 
-        # 최신 모델부터 순서대로 시도(앞 모델이 실패하면 다음으로 넘어감)
+        # 최신 모델부터 순서대로 시도. 서버 혼잡(503 등)이면 잠깐 쉬었다 자동 재시도.
         models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest"]
-        last_err = ""
-        for model in models:
-            api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-            resp = requests.post(api_url, headers=headers, json=payload, timeout=30)
-            if resp.status_code == 200:
-                return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-            last_err = f"[{model}] {resp.status_code} {resp.text}"
-        return f"❌ AI 생성 실패 (모든 모델 시도). 마지막 오류: {last_err}"
+        last_status, last_text = 0, ""
+        for attempt in range(3):                 # 전체 3회까지 재시도
+            for model in models:
+                api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+                resp = requests.post(api_url, headers=headers, json=payload, timeout=30)
+                if resp.status_code == 200:
+                    return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+                last_status, last_text = resp.status_code, resp.text
+            if attempt < 2:
+                time.sleep(2)                    # 일시 오류면 2초 쉬고 다시 시도
+
+        # 사람이 알아보기 쉬운 메시지로 안내
+        if last_status in (503, 500, 429) or "UNAVAILABLE" in last_text or "RESOURCE_EXHAUSTED" in last_text:
+            if last_status == 429 or "RESOURCE_EXHAUSTED" in last_text:
+                return "❌ 무료 사용량(쿼터)을 초과했어요. 잠시 후 또는 내일 다시 시도해 주세요."
+            return "❌ 지금 구글 AI 서버가 잠시 혼잡합니다(일시적). 10~20초 뒤 버튼을 다시 눌러주세요. (쿼터 문제 아님)"
+        return f"❌ AI 생성 실패: {last_status} {last_text}"
     except Exception as e:
         return f"❌ AI 생성 중 오류: {str(e)}"
 
