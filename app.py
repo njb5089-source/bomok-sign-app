@@ -31,8 +31,7 @@ def generate_announcement_with_ai(title, date, location, supplies, extra_info):
     try:
         # 🌟 구글 내부 인증 서버 조회를 우회하기 위해 client를 명시적으로 세팅하거나 
         # 가장 표준적인 모델 호출 방식을 사용합니다.
-        model = genai.GenerativeModel(
-            model_name="gemini-1.5-flash",
+        model = genai.GenerativeModel("models/gemini-1.5-flash")
             # 내부 메타데이터 조회를 건너뛰도록 기본 설정을 강제 전송
         )
 
