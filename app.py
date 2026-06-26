@@ -100,10 +100,12 @@ def save_to_gsheet(row):
         try:
             sheet = sh.worksheet("제출현황")
         except gspread.WorksheetNotFound:
-            sheet = sh.add_worksheet(title="제출현황", rows=200, cols=10)
-        # 시트가 비어 있으면 머리글(헤더)을 먼저 만들어 둡니다.
-        if not sheet.get_all_values():
-            sheet.append_row(["제출시각", "안내문 제목", "수집 정보", "동의 여부", "서명"])
+            sheet = sh.add_worksheet(title="제출현황", rows=300, cols=len(SUBMISSION_HEADER))
+        existing = sheet.get_all_values()
+        # 비어 있거나 머리글 구조가 다르면 1행에 머리글을 새로 깔아 줍니다.
+        if not existing or existing[0] != SUBMISSION_HEADER:
+            sheet.clear()
+            sheet.append_row(SUBMISSION_HEADER)
         sheet.append_row(row)
         return True, None
     except Exception as e:
@@ -165,6 +167,13 @@ FIELDS_BY_ID = {f["id"]: f for f in PRIVACY_FIELDS}
 LABEL_TO_ID = {f["label"]: f["id"] for f in PRIVACY_FIELDS}
 ALWAYS_IDS = [f["id"] for f in PRIVACY_FIELDS if f["always"]]
 OPTIONAL_FIELDS = [f for f in PRIVACY_FIELDS if not f["always"]]
+
+# 제출현황 시트의 고정 머리글: 모든 항목을 각각의 열로 둠(안 받은 항목은 빈칸)
+SUBMISSION_HEADER = (
+    ["제출시각", "안내문 제목"]
+    + [f["label"] for f in PRIVACY_FIELDS]
+    + ["동의 여부", "서명"]
+)
 
 
 # =====================================================================
@@ -259,15 +268,13 @@ if current_user_mode == "parent":
             elif not has_sign:
                 st.error("⚠️ 서명란에 직접 서명을 해주세요.")
             else:
-                # 수집한 항목들을 읽기 쉬운 한 줄로 정리해서 저장
-                info_str = " | ".join(f"{label}: {val}" for label, val in collected.items())
+                # 머리글 순서에 맞춰 각 항목을 해당 열에 채워 넣습니다.
                 row = [
                     datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     announcement["title"] if announcement else "(안내문 없음)",
-                    info_str,
-                    "동의함",
-                    "서명 완료",
                 ]
+                row += [collected.get(f["label"], "") for f in PRIVACY_FIELDS]
+                row += ["동의함", "서명 완료"]
                 ok, err = save_to_gsheet(row)
                 if ok:
                     st.success("🎉 보목지역아동센터 동의서 제출이 완료되었습니다!")
