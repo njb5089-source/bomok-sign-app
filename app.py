@@ -35,7 +35,8 @@ else:
 # =====================================================================
 # 🤖 2. AI 본문 자동 작성 함수 정의
 # =====================================================================
-def generate_announcement_with_ai(title, date, location, supplies, extra_info, collected_items=None):
+def generate_announcement_with_ai(title, date, location, supplies, extra_info,
+                                  collected_items=None, purpose=None):
     try:
         api_key = st.secrets.get("GEMINI_API_KEY", None)
         url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
@@ -44,12 +45,24 @@ def generate_announcement_with_ai(title, date, location, supplies, extra_info, c
         privacy_block = ""
         if collected_items:
             items_text = ", ".join(collected_items)
+            purpose_text = (purpose or "").strip()
+            if purpose_text:
+                purpose_rule = (
+                    "수집·이용 목적은 반드시 아래 담당자가 적은 내용을 그대로 사용하고, "
+                    f"네가 임의로 추측하거나 지어내지 마:\n        \"{purpose_text}\""
+                )
+            else:
+                purpose_rule = (
+                    "수집·이용 목적이 입력되지 않았으니 절대 임의로 지어내지 말고, "
+                    "'[수집·이용 목적: 담당 선생님이 별도 안내 예정]'이라고 그대로 표시할 것."
+                )
             privacy_block = f"""
         [이번 동의서에서 수집할 개인정보 항목]
         {items_text}
 
         위 개인정보를 수집하므로, 본문 끝부분에 '개인정보 수집·이용 안내' 문단을 자연스럽게 포함해줘.
-        - 수집 항목, 수집·이용 목적(예: 여행자보험 가입, 안전관리, 비상연락 등), 보유기간을 학부모가 이해하기 쉽게 안내할 것.
+        - 수집 항목과 보유기간을 학부모가 이해하기 쉽게 안내할 것.
+        - {purpose_rule}
         - 주민등록번호·건강정보 등 민감정보가 있으면 '관련 법령에 따라 안전하게 관리되며 목적 외 사용하지 않는다'는 안심 문구를 넣어줘.
         """
 
@@ -384,8 +397,20 @@ else:
     if sensitive_picked:
         st.warning(
             "🔒 민감정보(" + ", ".join(sensitive_picked) + ") 수집 → 본문에 수집 목적을 명시해야 합니다. "
-            "(아래 AI 생성 시 자동 반영됩니다. 정식 버전에서는 암호화 보관 필요)"
+            "(아래 '수집·이용 목적'에 직접 적어주세요. 정식 버전에서는 암호화 보관 필요)"
         )
+
+    # 수집·이용 목적은 교사가 직접 작성 → AI가 추측하지 않고 이 내용을 그대로 사용
+    if selected_labels or custom_labels:
+        purpose = st.text_area(
+            "📌 개인정보 수집·이용 목적 (직접 작성 — AI가 이 내용을 그대로 본문에 넣습니다)",
+            key="privacy_purpose", height=90, disabled=is_disabled,
+            placeholder="예) 아동 주민등록번호: 여행자보험 가입용 / 보호자 연락처: 비상시 연락용 / 건강정보: 활동 중 안전관리용",
+        )
+        if not purpose.strip():
+            st.caption("⚠️ 비워두면 AI가 목적을 임의로 짓지 않고 '담당 선생님 안내 예정'으로 비워둡니다.")
+    else:
+        purpose = ""
 
     st.markdown("---")
     st.write("### 🤖 3. AI 안내문 본문 생성")
@@ -396,7 +421,7 @@ else:
             with st.spinner("Gemini AI가 멋진 가정통신문을 작성하고 있습니다..."):
                 collected_items = [FIELDS_BY_ID[i]["label"] for i in selected_ids] + custom_labels
                 generated_text = generate_announcement_with_ai(
-                    title, date, location, supplies, extra_info, collected_items
+                    title, date, location, supplies, extra_info, collected_items, purpose
                 )
                 st.session_state.ai_generated_desc = generated_text
                 st.rerun()
