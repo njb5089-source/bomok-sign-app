@@ -440,22 +440,35 @@ else:
     remove_id = None
     for q in st.session_state.custom_questions:
         qid = q["id"]
-        c1, c2, c3 = st.columns([5, 3, 1])
-        c1.text_input("질문", key=f"cq_label_{qid}", disabled=is_disabled, placeholder="예: 수영 가능 여부")
-        qtype = c2.selectbox("형식", QTYPES, key=f"cq_type_{qid}", disabled=is_disabled)
-        if not is_disabled and c3.button("🗑", key=f"cq_del_{qid}"):
-            remove_id = qid
-        if qtype == "동의여부":
-            st.caption("　↳ 학부모 화면의 '동의가 필요한 항목'에 추가됩니다.")
-        elif qtype == "객관식":
-            cnt_key = f"opt_count_{qid}"
-            if cnt_key not in st.session_state:
-                st.session_state[cnt_key] = 2   # 기본 선택지 2개
-            for j in range(st.session_state[cnt_key]):
-                st.text_input(f"　└ 선택지 {j + 1}", key=f"cq_opt_{qid}_{j}",
-                              disabled=is_disabled, placeholder=f"선택지 {j + 1}")
-            if not is_disabled and st.button("➕ 선택지 추가", key=f"add_opt_{qid}", type="tertiary"):
-                st.session_state[cnt_key] += 1
+        with st.container(border=True):   # 질문을 카드로 묶어 다른 질문과 구분
+            c1, c2, c3 = st.columns([5, 3, 1])
+            c1.text_input("질문", key=f"cq_label_{qid}", disabled=is_disabled, placeholder="예: 수영 가능 여부")
+            qtype = c2.selectbox("형식", QTYPES, key=f"cq_type_{qid}", disabled=is_disabled)
+            if not is_disabled and c3.button("🗑", key=f"cq_del_{qid}"):
+                remove_id = qid
+            if qtype == "동의여부":
+                st.caption("　↳ 학부모 화면의 '동의가 필요한 항목'에 추가됩니다.")
+            elif qtype == "객관식":
+                ids_key = f"opt_ids_{qid}"
+                if ids_key not in st.session_state:
+                    st.session_state[ids_key] = [1, 2]   # 기본 선택지 2개
+                if f"next_oid_{qid}" not in st.session_state:
+                    st.session_state[f"next_oid_{qid}"] = max(st.session_state[ids_key], default=0) + 1
+                st.caption("　└ 선택지")
+                oids = st.session_state[ids_key]
+                remove_oid = None
+                for k, oid in enumerate(oids):
+                    _sp, ocol, dcol = st.columns([1, 7, 1])   # 왼쪽 빈칸 = 들여쓰기
+                    ocol.text_input("선택지", key=f"cq_opt_{qid}_{oid}", disabled=is_disabled,
+                                    placeholder=f"선택지 {k + 1}", label_visibility="collapsed")
+                    if not is_disabled and len(oids) > 1 and dcol.button("🗑", key=f"opt_del_{qid}_{oid}"):
+                        remove_oid = oid
+                if remove_oid is not None:
+                    st.session_state[ids_key] = [o for o in oids if o != remove_oid]
+                _sp2, addcol = st.columns([1, 7])
+                if not is_disabled and addcol.button("➕ 선택지 추가", key=f"add_opt_{qid}", type="tertiary"):
+                    st.session_state[ids_key].append(st.session_state[f"next_oid_{qid}"])
+                    st.session_state[f"next_oid_{qid}"] += 1
     if remove_id is not None:
         st.session_state.custom_questions = [
             qq for qq in st.session_state.custom_questions if qq["id"] != remove_id
@@ -472,11 +485,8 @@ else:
         qtype = st.session_state.get(f"cq_type_{qid}", "직접 기입")
         opts_list = []
         if qtype == "객관식":
-            cnt = st.session_state.get(f"opt_count_{qid}", 2)
-            opts_list = [
-                st.session_state.get(f"cq_opt_{qid}_{j}", "").strip()
-                for j in range(cnt)
-            ]
+            oids = st.session_state.get(f"opt_ids_{qid}", [])
+            opts_list = [st.session_state.get(f"cq_opt_{qid}_{oid}", "").strip() for oid in oids]
             opts_list = [o for o in opts_list if o]
         custom_questions_defs.append({"label": lbl, "type": qtype, "options": opts_list})
     custom_labels = [q["label"] for q in custom_questions_defs]
