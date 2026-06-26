@@ -649,7 +649,7 @@ else:
     st.subheader("가정통신문 작성 및 AI 자동화 시스템")
     
     st.write("### 📝 1. 프로그램 기본 정보 입력")
-    is_disabled = st.session_state.preview_mode
+    is_disabled = False   # 미리보기 모드 제거 — 항상 편집 가능
 
     if "info_title" not in st.session_state:
         st.session_state.info_title = "섶섬 생태 탐방 및 자리돔 낚시 체험"
@@ -839,32 +839,21 @@ else:
 
     st.markdown("---")
     st.write("### 🤖 3. AI 안내문 본문 생성")
-    st.caption("위에서 고른 개인정보 항목의 '수집·이용 목적'까지 AI가 본문에 자동으로 포함합니다.")
+    st.caption("초안을 만들면 아래 '학부모 시안'에 바로 반영됩니다. 본문은 시안에서 직접 수정하세요.")
 
-    if not st.session_state.preview_mode:
-        if st.button("🪄 AI 안내문 초안 자동 생성하기"):
-            with st.spinner("Gemini AI가 멋진 가정통신문을 작성하고 있습니다..."):
-                generated_text = generate_announcement_with_ai(title, info_items_data)
-                st.session_state.ai_generated_desc = generated_text
-                st.rerun()
-
-    desc = st.text_area("상세 안내 문구", value=st.session_state.ai_generated_desc, height=250, disabled=is_disabled)
-    # 입력칸에 직접 쓴 내용도 메모리에 저장 → 미리보기/수정 오가도 글이 사라지지 않음
-    st.session_state.ai_generated_desc = desc
-
-    if not st.session_state.preview_mode:
-        st.markdown("---")
-        if st.button("🔍 학부모용 서식 시안 미리보기"):
-            st.session_state.preview_mode = True
+    if st.button("🪄 AI 안내문 초안 자동 생성하기"):
+        with st.spinner("Gemini AI가 멋진 가정통신문을 작성하고 있습니다..."):
+            st.session_state.ai_generated_desc = generate_announcement_with_ai(title, info_items_data)
             st.rerun()
 
-    if st.session_state.preview_mode:
+    if True:
         st.markdown("---")
-        st.markdown("### 📱 4. 학부모용 최종 발송 시안 확인")
+        st.markdown("### 📱 학부모 시안 (본문 여기서 바로 수정 가능)")
         st.markdown('<div class="preview-container">', unsafe_allow_html=True)
         st.markdown(f"### 🌲 {title}")
         st.caption("보목지역아동센터 가정통신문")
-        st.info(desc)
+        desc = st.text_area("상세 안내 문구 (바로 수정 가능)", value=st.session_state.ai_generated_desc, height=250)
+        st.session_state.ai_generated_desc = desc
         st.markdown("##### 📋 학부모가 입력하게 될 항목")
         # 교사가 선택한 항목 그대로 미리보기에 표시 (동의형은 일괄 동의로 모음)
         pv_consent_items = []
@@ -920,25 +909,18 @@ else:
         st.markdown('</div>', unsafe_allow_html=True)
         st.markdown("---")
         
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("✏️ 오타 수정하기"):
-                st.session_state.preview_mode = False
-                st.rerun()
-        with col2:
-            if st.button("🚀 시안 확정 및 발송 링크 생성"):
-                # 확정한 안내문을 시트에 발행 → 학부모 화면이 읽어가게 함
-                ok, err = publish_announcement({
-                    "title": title, "desc": desc, "is_outdoor": is_outdoor,
-                    "fields": ",".join(selected_ids),
-                    "custom_fields": json.dumps(custom_questions_defs, ensure_ascii=False),
-                    "collection": json.dumps(collection_details, ensure_ascii=False),
-                })
-                st.session_state.publish_error = None if ok else err
-                st.session_state.generated = True
-                st.session_state.preview_mode = False
-                st.balloons()
-                st.rerun()
+        if st.button("🚀 시안 확정 및 발송 링크 생성"):
+            # 확정한 안내문을 시트에 발행 → 학부모 화면이 읽어가게 함
+            ok, err = publish_announcement({
+                "title": title, "desc": desc, "is_outdoor": is_outdoor,
+                "fields": ",".join(selected_ids),
+                "custom_fields": json.dumps(custom_questions_defs, ensure_ascii=False),
+                "collection": json.dumps(collection_details, ensure_ascii=False),
+            })
+            st.session_state.publish_error = None if ok else err
+            st.session_state.generated = True
+            st.balloons()
+            st.rerun()
 
     if st.session_state.get("generated", False):
         st.markdown("---")
