@@ -952,11 +952,11 @@ else:
         _roster = load_roster()
         if _roster:
             st.caption(f"등록 인원: {len(_roster)}명")
-            for r in _roster:
+            for i, r in enumerate(_roster):
                 token = r.get("대상ID")
                 d1, d2 = st.columns([6, 1])
                 d1.write(f"- {r.get('아동명','')} / {r.get('보호자명','')} / {r.get('전화번호','')}")
-                if d2.button("🗑", key=f"del_roster_{token}"):
+                if d2.button("🗑", key=f"del_roster_{i}"):
                     delete_roster_entry(token)
                     st.rerun()
 
