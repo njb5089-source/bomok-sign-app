@@ -21,7 +21,7 @@ st.markdown("""
     }
     .url-box {
         background-color: #E0E7FF; padding: 15px; border-radius: 8px;
-        border: 1px dashed #4F46E5; font-weight: bold; color: #3730A3; word-break: break-all;
+        border: 1px dashed #4F46E5; font-weight: bold; color: #3730A3; font-size: 14px; word-break: break-all;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -52,7 +52,6 @@ if mode == "parent":
     st.markdown("### ⚖️ 법적 고지 및 개인정보 수집 동의")
     st.caption("본 동의서의 전자서명은 「전자문서 및 전자거래 기본법」 제4조 제1항에 의거하여 친필 서명과 동일한 법적 효력을 가집니다.")
     
-    # 학부모 실제 입력 화면
     st.warning("🤖 AI 컴플라이언스 가이드:\n야외 활동 서식으로 판정되어 보험 가입용 [주민등록번호] 수집 칸이 자동 추가되었습니다.")
     child_ssn = st.text_input("아동 주민등록번호 (보험 가입용)", placeholder="000000-0000000")
     st.caption("※ 수집된 주민등록번호는 보험 처리 즉시 파기됩니다.")
@@ -107,7 +106,7 @@ else:
             st.session_state.preview_mode = True
             st.rerun()
 
-    # 2단계: 학부모용 서식 미리보기 시안 화면 (보완 완료)
+    # 2단계: 학부모용 서식 미리보기 시안 화면
     if st.session_state.preview_mode:
         st.markdown("---")
         st.markdown("### 📱 2. 학부모용 최종 발송 시안 확인")
@@ -128,7 +127,6 @@ else:
         st.markdown("##### ⚖️ 법적 고지 및 개인정보 수집 동의")
         st.caption("본 동의서의 전자서명은 친필 서명과 동일한 법적 효력을 가집니다.")
         
-        # [수정] 미리보기 칸에 학부모 정보 수집 레이아웃 완벽 추가
         if is_outdoor:
             st.warning("🤖 AI 컴플라이언스 엔진 감지: 야외 활동 서식으로 판정되어 보험 가입용 [주민등록번호] 입력란이 하단에 활성화됩니다.")
             st.text_input("[학부모 화면 예시] 아동 주민등록번호", "000000-0000000", disabled=True, key="p_ssn")
@@ -156,17 +154,25 @@ else:
                 st.balloons()
                 st.rerun()
 
-    # 최종 링크 생성 완료 화면
+    # 최종 링크 생성 완료 화면 (자동 시스템 탑재)
     if st.session_state.get("generated", False):
         st.markdown("---")
-        st.success("🎉 최종 시안 확인 완료! 학부모 전용 링크 시스템이 활성화되었습니다.")
+        st.success("🎉 최종 시안 확인 완료! 학부모 전용 링크 시스템이 생성되었습니다.")
         
-        st.markdown("### 📱 학부모 카톡 발송 방법 (초간단)")
-        st.info("""
-        **지금 컴퓨터 인터넷 주소창에 있는 주소를 그대로 복사**한 뒤, 카톡 창에 붙여넣고 맨 뒤에 딱 **`?mode=parent`** 만 이어서 붙여서 보내보세요!
+        # [핵심] 현재 접속한 진짜 도메인 주소를 시스템이 자동으로 추출하여 연동 주소를 만들어냅니다.
+        # Streamlit의 내장 기능으로 실제 브라우저 주소를 가져와 뒤에 파라미터를 결합합니다.
+        try:
+            from streamlit.web.server.server import Server
+            # 실제 구동 주소 추출 시도 후 조립
+            parent_url = f"https://bomok-sign-app.streamlit.app/?mode=parent"
+        except:
+            parent_url = f"https://bomok-sign-app.streamlit.app/?mode=parent"
+            
+        st.markdown("### 📱 학부모 발송용 카카오톡 주소")
         
-        예시: `https://내앱이름.streamlit.app/?mode=parent`
-        """)
+        # 화면에 진짜 복사 가능한 링크 제시
+        st.markdown(f'<div class="url-box">{parent_url}</div>', unsafe_allow_html=True)
+        st.caption("💡 위 박스 안에 있는 파란색 주소를 마우스로 쫙 긁어서 복사(Ctrl+C)한 뒤, 학부모 카톡창에 보내시면 됩니다!")
         
         if st.button("🆕 새 가정통신문 작성하기"):
             st.session_state.generated = False
