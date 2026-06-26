@@ -84,14 +84,19 @@ def mask_ssn(ssn):
     return "(미입력 또는 형식 오류)"
 
 
+def _open_spreadsheet():
+    """구글 시트에 인증하고 스프레드시트를 엽니다."""
+    scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+    creds_dict = json.loads(st.secrets["gcp_service_account_json"])
+    creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+    gc = gspread.authorize(creds)
+    return gc.open_by_key(st.secrets["SHEET_ID"])
+
+
 def save_to_gsheet(row):
-    """제출 정보를 구글 시트에 한 줄 추가합니다. 설정 전이면 안전하게 실패합니다."""
+    """제출 정보를 구글 시트 첫 번째 탭에 한 줄 추가합니다. 설정 전이면 안전하게 실패합니다."""
     try:
-        scopes = ["https://www.googleapis.com/auth/spreadsheets"]
-        creds_dict = json.loads(st.secrets["gcp_service_account_json"])
-        creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-        gc = gspread.authorize(creds)
-        sheet = gc.open_by_key(st.secrets["SHEET_ID"]).sheet1
+        sheet = _open_spreadsheet().sheet1
         # 시트가 비어 있으면 머리글(헤더)을 먼저 만들어 둡니다.
         if not sheet.get_all_values():
             sheet.append_row(
@@ -102,6 +107,39 @@ def save_to_gsheet(row):
         return True, None
     except Exception as e:
         return False, str(e)
+
+
+def publish_announcement(data):
+    """교사가 확정한 안내문을 '발송안내문' 탭에 저장합니다. 학부모 화면이 이걸 읽어갑니다."""
+    try:
+        sh = _open_spreadsheet()
+        try:
+            ws = sh.worksheet("발송안내문")
+        except gspread.WorksheetNotFound:
+            ws = sh.add_worksheet(title="발송안내문", rows=10, cols=10)
+        ws.clear()
+        ws.append_row(["title", "date", "location", "supplies", "desc", "is_outdoor"])
+        ws.append_row([
+            data["title"], data["date"], data["location"],
+            data["supplies"], data["desc"], "Y" if data["is_outdoor"] else "N",
+        ])
+        return True, None
+    except Exception as e:
+        return False, str(e)
+
+
+def load_announcement():
+    """'발송안내문' 탭에서 가장 최근에 확정된 안내문을 불러옵니다. 없으면 None."""
+    try:
+        ws = _open_spreadsheet().worksheet("발송안내문")
+        records = ws.get_all_records()
+        if records:
+            rec = records[0]
+            rec["is_outdoor"] = (str(rec.get("is_outdoor", "")).strip().upper() == "Y")
+            return rec
+        return None
+    except Exception:
+        return None
 
 
 # =====================================================================
@@ -130,13 +168,27 @@ st.markdown("""
 # 📱 [CASE 1] 학부모 전용 링크 접속 화면
 # =====================================================================
 if current_user_mode == "parent":
-    st.title("🌲 보목지역아동센터 가정통신문")
-    st.subheader("모바일 확인 및 동의서 제출")
-    
-    
+    # 교사가 확정·발송한 안내문을 구글 시트에서 불러옵니다.
+    announcement = load_announcement()
+    if announcement:
+        st.title(f"🌲 {announcement['title']}")
+        st.caption("보목지역아동센터 가정통신문")
+        st.info(announcement["desc"])
+        show_ssn = announcement["is_outdoor"]
+    else:
+        st.title("🌲 보목지역아동센터 가정통신문")
+        st.caption("보목지역아동센터 가정통신문")
+        st.warning("아직 선생님이 확정·발송한 안내문이 없습니다. 잠시 후 다시 확인해 주세요.")
+        show_ssn = True  # 안내문이 없을 땐 기존처럼 모두 표시
 
-    
-    child_ssn = st.text_input("아동 주민등록번호 (보험 가입용)", placeholder="000000-0000000")
+    st.markdown("---")
+    st.subheader("📝 동의서 작성 및 제출")
+
+    if show_ssn:
+        st.caption("🤖 야외 활동이라 보험 가입을 위해 아동 주민등록번호를 수집합니다.")
+        child_ssn = st.text_input("아동 주민등록번호 (보험 가입용)", placeholder="000000-0000000")
+    else:
+        child_ssn = ""  # 실내 활동은 주민번호를 수집하지 않습니다.
     child_name = st.text_input("아동 성명", placeholder="예: 김민준")
     parent_name = st.text_input("보호자 성명", placeholder="예: 김철수")
     parent_phone = st.text_input("보호자 연락처", placeholder="예: 010-1234-5678")
@@ -172,7 +224,7 @@ if current_user_mode == "parent":
                     child_name,
                     parent_name,
                     parent_phone,
-                    mask_ssn(child_ssn),   # 주민번호는 마스킹해서만 저장
+                    mask_ssn(child_ssn) if show_ssn else "미수집(실내활동)",  # 주민번호는 마스킹해서만 저장
                     "동의함",
                     "서명 완료",
                 ]
@@ -250,6 +302,12 @@ else:
                 st.rerun()
         with col2:
             if st.button("🚀 시안 확정 및 발송 링크 생성"):
+                # 확정한 안내문을 시트에 발행 → 학부모 화면이 읽어가게 함
+                ok, err = publish_announcement({
+                    "title": title, "date": date, "location": location,
+                    "supplies": supplies, "desc": desc, "is_outdoor": is_outdoor,
+                })
+                st.session_state.publish_error = None if ok else err
                 st.session_state.generated = True
                 st.session_state.preview_mode = False
                 st.balloons()
@@ -257,6 +315,13 @@ else:
 
     if st.session_state.get("generated", False):
         st.markdown("---")
+        if st.session_state.get("publish_error"):
+            st.warning(
+                "⚠️ 안내문이 학부모 화면에 안 보일 수 있어요(시트 저장 실패): "
+                f"{st.session_state.publish_error}"
+            )
+        else:
+            st.success("📨 작성하신 안내문이 학부모 화면으로 발행되었습니다.")
         st.success("🎉 최종 시안 확인 완료! 학부모 전용 링크 시스템이 활성화되었습니다.")
         st.markdown("### 📱 학부모 발송용 카카오톡 주소")
         
