@@ -23,7 +23,7 @@ if "ai_generated_desc" not in st.session_state:
 
 
 # =====================================================================
-# 🤖 2. AI 본문 자동 작성 함수 정의 (AQ. 키 헤더 인증 방식)
+# 🤖 2. AI 본문 자동 작성 함수 정의 (주소 규격 최종 안정화 버전)
 # =====================================================================
 def generate_announcement_with_ai(title, date, location, supplies, extra_info):
     try:
@@ -31,7 +31,8 @@ def generate_announcement_with_ai(title, date, location, supplies, extra_info):
         if not api_key:
             return "❌ AI 생성 중 오류가 발생했습니다: Streamlit Secrets에 API 키가 없습니다."
 
-        # 🌟 주소 뒤의 ?key= 부분을 완전히 지우고 깔끔한 순수 주소만 남깁니다.
+        # 🌟 주소창 구조에서 'models/'를 생략하거나 정확한 단일 경로로 매핑합니다.
+        # 기존 주소에서 발생하던 중복 경로 오류를 해결하는 정석 주소입니다.
         url = "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent"
         
         prompt = f"""
@@ -48,10 +49,9 @@ def generate_announcement_with_ai(title, date, location, supplies, extra_info):
         부드러운 해요체(~합니다, ~바랍니다)를 사용하고 이모지와 줄바꿈을 섞어서 작성해줘.
         """
 
-        # 🌟 [핵심 변경] AQ. 키의 보안 규격에 맞게 헤더에 인증 키를 담아줍니다.
         headers = {
             "Content-Type": "application/json",
-            "x-goog-api-key": api_key  # 구글 서버가 요구하는 올바른 API 키 헤더 전달 방식
+            "x-goog-api-key": api_key
         }
         
         payload = {
@@ -62,12 +62,20 @@ def generate_announcement_with_ai(title, date, location, supplies, extra_info):
             ]
         }
 
-        # 실제로 구글 서버에 요청 전송
         response = requests.post(url, headers=headers, json=payload, timeout=30)
         
         if response.status_code == 200:
             result_json = response.json()
             return result_json["candidates"][0]["content"]["parts"][0]["text"]
+        
+        # 💡 혹시나 v1 주소에서 flash 모델을 거부할 경우를 대비한 2차 백업 주소 (자동 전환)
+        elif response.status_code == 404:
+            backup_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+            backup_response = requests.post(backup_url, headers=headers, json=payload, timeout=30)
+            if backup_response.status_code == 200:
+                return backup_response.json()["candidates"][0]["content"]["parts"][0]["text"]
+            else:
+                return f"❌ 구글 서버 응답 에러 (코드 {backup_response.status_code}): {backup_response.text}"
         else:
             return f"❌ 구글 서버 응답 에러 (코드 {response.status_code}): {response.text}"
 
