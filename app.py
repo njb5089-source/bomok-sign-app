@@ -25,15 +25,12 @@ if "ai_generated_desc" not in st.session_state:
 
 
 # =====================================================================
-# 🤖 2. AI 본문 자동 작성 함수 정의 (수정본)
+# 🤖 2. AI 본문 자동 작성 함수 정의
 # =====================================================================
 def generate_announcement_with_ai(title, date, location, supplies, extra_info):
     try:
-        # 🌟 구글 내부 인증 서버 조회를 우회하기 위해 client를 명시적으로 세팅하거나 
-        # 가장 표준적인 모델 호출 방식을 사용합니다.
+        # 🌟 404 에러를 방지하기 위해 'models/' 경로를 명시하여 모델을 생성합니다.
         model = genai.GenerativeModel("models/gemini-1.5-flash")
-            # 내부 메타데이터 조회를 건너뛰도록 기본 설정을 강제 전송
-        )
 
         prompt = f"""
         너는 보목지역아동센터의 따뜻하고 정중한 사회복지사야. 
@@ -49,13 +46,10 @@ def generate_announcement_with_ai(title, date, location, supplies, extra_info):
         부드러운 해요체(~합니다, ~바랍니다)를 사용하고 이모지와 줄바꿈을 섞어서 작성해줘.
         """
         
-        # 호출 시 타임아웃을 짧게 주어 먹통 방지 (기본 30초 슬롯)
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
-        # 에러가 나면 어떤 에러인지 정확히 화면에 찍기
         return f"❌ AI 생성 중 오류가 발생했습니다: {str(e)}"
-
 
 # =====================================================================
 # 🎨 3. 디자인 고도화 CSS 정의
