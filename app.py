@@ -52,13 +52,14 @@ if mode == "parent":
     st.markdown("### ⚖️ 법적 고지 및 개인정보 수집 동의")
     st.caption("본 동의서의 전자서명은 「전자문서 및 전자거래 기본법」 제4조 제1항에 의거하여 친필 서명과 동일한 법적 효력을 가집니다.")
     
-    # 학부모 전용 페이지는 야외 서식 기준으로 주민번호 칸 고정 표출 (시연 최적화)
+    # 학부모 실제 입력 화면
     st.warning("🤖 AI 컴플라이언스 가이드:\n야외 활동 서식으로 판정되어 보험 가입용 [주민등록번호] 수집 칸이 자동 추가되었습니다.")
     child_ssn = st.text_input("아동 주민등록번호 (보험 가입용)", placeholder="000000-0000000")
     st.caption("※ 수집된 주민등록번호는 보험 처리 즉시 파기됩니다.")
         
     child_name = st.text_input("아동 성명", placeholder="예: 김민준")
     parent_name = st.text_input("보호자 성명", placeholder="예: 김철수")
+    parent_phone = st.text_input("보호자 연락처", placeholder="예: 010-1234-5678")
     
     agree = st.checkbox("위 내용을 모두 확인하였으며 동의합니다.")
     st.markdown("---")
@@ -106,10 +107,11 @@ else:
             st.session_state.preview_mode = True
             st.rerun()
 
-    # 2단계: 학부모용 서식 미리보기 시안 화면
+    # 2단계: 학부모용 서식 미리보기 시안 화면 (보완 완료)
     if st.session_state.preview_mode:
         st.markdown("---")
         st.markdown("### 📱 2. 학부모용 최종 발송 시안 확인")
+        st.caption("초록색 박스 내부가 학부모 스마트폰에 그대로 띄워질 실물 화면 레이아웃입니다.")
         
         st.markdown('<div class="preview-container">', unsafe_allow_html=True)
         st.markdown(f"### 🌲 {title}")
@@ -123,9 +125,19 @@ else:
         👟 상세안내: {desc}
         """)
         
+        st.markdown("##### ⚖️ 법적 고지 및 개인정보 수집 동의")
+        st.caption("본 동의서의 전자서명은 친필 서명과 동일한 법적 효력을 가집니다.")
+        
+        # [수정] 미리보기 칸에 학부모 정보 수집 레이아웃 완벽 추가
         if is_outdoor:
-            st.warning("🤖 AI 컴플라이언스 엔진 감지: 야외 활동 서식으로 판정됨.")
+            st.warning("🤖 AI 컴플라이언스 엔진 감지: 야외 활동 서식으로 판정되어 보험 가입용 [주민등록번호] 입력란이 하단에 활성화됩니다.")
+            st.text_input("[학부모 화면 예시] 아동 주민등록번호", "000000-0000000", disabled=True, key="p_ssn")
             
+        st.text_input("[학부모 화면 예시] 아동 성명", placeholder="예: 김민준", disabled=True, key="p_name")
+        st.text_input("[학부모 화면 예시] 보호자 성명", placeholder="예: 김철수", disabled=True, key="p_pname")
+        st.text_input("[학부모 화면 예시] 보호자 연락처", placeholder="예: 010-1234-5678", disabled=True, key="p_phone")
+        st.checkbox("[학부모 화면 예시] 위 내용을 모두 확인하였으며 동의합니다.", disabled=True, key="p_agree")
+        
         st.markdown('</div>', unsafe_allow_html=True)
         
         st.markdown("---")
@@ -148,11 +160,6 @@ else:
     if st.session_state.get("generated", False):
         st.markdown("---")
         st.success("🎉 최종 시안 확인 완료! 학부모 전용 링크 시스템이 활성화되었습니다.")
-        
-        # 현재 구동 중인 선생님 앱의 '진짜 실제 주소'를 자동으로 찾아내어 카톡용 주소로 조립합니다.
-        # 주소 뒤에 ?mode=parent 를 붙여 학부모 화면을 강제 고정합니다.
-        current_url = "https://share.streamlit.io/" # 기본 폴백
-        parent_url = f"학부모용 전용 링크는 [현재 컴퓨터 인터넷 주소창의 주소] 맨 뒤에 '?mode=parent' 를 붙여서 카톡으로 보내시면 됩니다!"
         
         st.markdown("### 📱 학부모 카톡 발송 방법 (초간단)")
         st.info("""
