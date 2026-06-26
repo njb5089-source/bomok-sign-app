@@ -130,8 +130,12 @@ def mask_account(acc):
 # 🧩 분할 입력 도우미 — 정해진 칸 형식으로 개인정보를 입력받습니다.
 # =====================================================================
 def _sep(text):
-    """입력칸 사이의 구분 기호/단위(- , 년, 월 등)를 가운데에 표시"""
-    st.markdown(f"<div style='text-align:center'>{text}</div>", unsafe_allow_html=True)
+    """입력칸 사이의 구분 기호/단위(- , 년, 월 등)를 칸과 같은 높이로 세로 중앙정렬"""
+    st.markdown(
+        "<div style='display:flex;align-items:center;justify-content:center;"
+        f"height:38px;margin:0;'>{text}</div>",
+        unsafe_allow_html=True,
+    )
 
 
 def _input_phone(label, key_prefix, disabled=False):
@@ -183,6 +187,25 @@ def _input_ssn(label, key_prefix, disabled=False):
     back = c2.text_input(label + " 뒤", key=f"{key_prefix}_b", max_chars=7, placeholder="뒤 7자리",
                          label_visibility="collapsed", disabled=disabled)
     return mask_ssn(f"{front}{back}")
+
+
+def _input_bank(label, key_prefix, disabled=False):
+    """환불 계좌번호: [은행명]은행 [계좌번호] (저장 시 계좌번호 마스킹)"""
+    st.markdown(f"**{label}**")
+    c1, l1, c2 = st.columns([3, 1, 6], vertical_alignment="center")
+    bank = c1.text_input(label, key=f"{key_prefix}_bank", placeholder="예: 농협",
+                         label_visibility="collapsed", disabled=disabled)
+    with l1:
+        _sep("은행")
+    acc = c2.text_input(label + " 번호", key=f"{key_prefix}_acc", placeholder="계좌번호",
+                        label_visibility="collapsed", disabled=disabled)
+    bank = bank.strip()
+    parts = []
+    if bank:
+        parts.append(f"{bank}은행")
+    if acc.strip():
+        parts.append(mask_account(acc))
+    return " ".join(parts)
 
 
 def _input_school(label, key_prefix, disabled=False):
@@ -397,6 +420,8 @@ if current_user_mode == "parent":
             collected[lbl] = _input_ssn(lbl, f"pf_{fid}")        # 마스킹해서만 저장
         elif fid == "school":
             collected[lbl] = _input_school(lbl, f"pf_{fid}")
+        elif fid == "bank_account":
+            collected[lbl] = _input_bank(lbl, f"pf_{fid}")       # 계좌번호 마스킹 포함
         elif f["type"] == "account":
             raw = st.text_input(lbl, placeholder=f["ph"], key=f"pf_{fid}")
             collected[lbl] = mask_account(raw)                   # 계좌번호도 마스킹해서만 저장
@@ -675,6 +700,8 @@ else:
                 _input_ssn(lbl, f"pv_{fid}", disabled=True)
             elif fid == "school":
                 _input_school(lbl, f"pv_{fid}", disabled=True)
+            elif fid == "bank_account":
+                _input_bank(lbl, f"pv_{fid}", disabled=True)
             else:
                 tag = " (마스킹 저장)" if f["type"] == "account" else ""
                 st.text_input(f"[학부모 화면 예시] {lbl}{tag}",
