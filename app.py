@@ -34,7 +34,7 @@ if "ai_generated_desc" not in st.session_state:
 def generate_announcement_with_ai(title, date, location, supplies, extra_info):
     try:
         # 가볍고 응답 속도가 빠른 최신 모델 사용
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        model = genai.GenerativeModel('gemini-1.5-flash-latest')
 
         prompt = f"""
         너는 보목지역아동센터의 따뜻하고 정중한 사회복지사야. 
