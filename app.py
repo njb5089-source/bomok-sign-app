@@ -311,16 +311,18 @@ if current_user_mode == "parent":
     # 교사가 구글 폼처럼 구성한 직접 추가 질문들
     custom_questions = announcement.get("custom_questions", []) if announcement else []
     custom_collected = {}
+    custom_consent_items = []   # '동의여부' 질문은 일괄 동의로 처리
     for i, q in enumerate(custom_questions):
         lbl = q.get("label", "")
         if not lbl:
             continue
         qtype = q.get("type", "직접 기입")
-        if qtype == "체크박스":
-            checked = st.checkbox(lbl, key=f"pf_custom_{i}")
-            custom_collected[lbl] = "예" if checked else "아니오"
+        if qtype == "동의여부":
+            custom_consent_items.append(lbl)   # 입력칸 대신 일괄 동의 목록에 추가
         elif qtype == "객관식":
-            opts = [o.strip() for o in str(q.get("options", "")).split(",") if o.strip()]
+            opts = q.get("options", [])
+            if isinstance(opts, str):   # 옛 데이터(쉼표 문자열) 호환
+                opts = [o.strip() for o in opts.split(",") if o.strip()]
             if opts:
                 custom_collected[lbl] = st.radio(lbl, opts, key=f"pf_custom_{i}")
             else:
@@ -330,16 +332,19 @@ if current_user_mode == "parent":
 
     st.markdown("### ⚖️ 법적 고지 및 개인정보 수집 동의")
     st.caption("본 동의서의 전자서명은 「전자문서 및 전자거래 기본법」 제4조 제1항에 의거하여 친필 서명과 동일한 법적 효력을 가집니다.")
-    if consent_items:
+    all_consent_items = consent_items + custom_consent_items
+    if all_consent_items:
         st.markdown("**동의가 필요한 항목**")
-        for item in consent_items:
+        for item in all_consent_items:
             st.markdown(f"- {item}")
     # 고정 안내 문구 (동의 거부권 고지 — 항상 표시)
     st.info("개인정보 수집·이용에 대한 동의를 거부할 권리가 있으며, 동의 거부 시 프로그램 참여가 제한될 수 있습니다.")
     agree = st.checkbox("위 내용을 모두 확인하였으며, 위 모든 항목에 동의합니다.")
-    # 일괄 동의 결과를 각 동의형 항목에 반영
+    # 일괄 동의 결과를 각 동의형 항목에 반영 (예정 항목은 각자의 저장 위치에)
     for item in consent_items:
         collected[item] = "동의" if agree else "미동의"
+    for item in custom_consent_items:
+        custom_collected[item] = "동의" if agree else "미동의"
     st.markdown("---")
     
     if agree:
@@ -431,7 +436,7 @@ else:
         st.session_state.custom_questions.append({"id": st.session_state.next_qid})
         st.session_state.next_qid += 1
 
-    QTYPES = ["직접 기입", "체크박스", "객관식"]
+    QTYPES = ["직접 기입", "동의여부", "객관식"]
     remove_id = None
     for q in st.session_state.custom_questions:
         qid = q["id"]
@@ -440,9 +445,17 @@ else:
         qtype = c2.selectbox("형식", QTYPES, key=f"cq_type_{qid}", disabled=is_disabled)
         if not is_disabled and c3.button("🗑", key=f"cq_del_{qid}"):
             remove_id = qid
-        if qtype == "객관식":
-            st.text_input("　└ 선택지 (쉼표로 구분)", key=f"cq_opts_{qid}", disabled=is_disabled,
-                          placeholder="예: 가능, 불가능, 보호자 동행 시 가능")
+        if qtype == "동의여부":
+            st.caption("　↳ 학부모 화면의 '동의가 필요한 항목'에 추가됩니다.")
+        elif qtype == "객관식":
+            cnt_key = f"opt_count_{qid}"
+            if cnt_key not in st.session_state:
+                st.session_state[cnt_key] = 2   # 기본 선택지 2개
+            for j in range(st.session_state[cnt_key]):
+                st.text_input(f"　└ 선택지 {j + 1}", key=f"cq_opt_{qid}_{j}",
+                              disabled=is_disabled, placeholder=f"선택지 {j + 1}")
+            if not is_disabled and st.button("➕ 선택지 추가", key=f"add_opt_{qid}", type="tertiary"):
+                st.session_state[cnt_key] += 1
     if remove_id is not None:
         st.session_state.custom_questions = [
             qq for qq in st.session_state.custom_questions if qq["id"] != remove_id
@@ -456,11 +469,16 @@ else:
         lbl = st.session_state.get(f"cq_label_{qid}", "").strip()
         if not lbl:
             continue
-        custom_questions_defs.append({
-            "label": lbl,
-            "type": st.session_state.get(f"cq_type_{qid}", "직접 기입"),
-            "options": st.session_state.get(f"cq_opts_{qid}", ""),
-        })
+        qtype = st.session_state.get(f"cq_type_{qid}", "직접 기입")
+        opts_list = []
+        if qtype == "객관식":
+            cnt = st.session_state.get(f"opt_count_{qid}", 2)
+            opts_list = [
+                st.session_state.get(f"cq_opt_{qid}_{j}", "").strip()
+                for j in range(cnt)
+            ]
+            opts_list = [o for o in opts_list if o]
+        custom_questions_defs.append({"label": lbl, "type": qtype, "options": opts_list})
     custom_labels = [q["label"] for q in custom_questions_defs]
 
     # 상황별 자동 경고/권고
@@ -550,10 +568,13 @@ else:
                               placeholder=f.get("ph", ""), disabled=True, key=f"pv_{fid}")
         for i, q in enumerate(custom_questions_defs):
             lbl = q["label"]
-            if q["type"] == "체크박스":
-                st.checkbox(f"[학부모 화면 예시] {lbl}", disabled=True, key=f"pv_custom_{i}")
+            if q["type"] == "동의여부":
+                pv_consent_items.append(lbl)   # 일괄 동의 목록으로 모음
             elif q["type"] == "객관식":
-                opts = [o.strip() for o in str(q.get("options", "")).split(",") if o.strip()] or ["(선택지 미입력)"]
+                opts = q.get("options", [])
+                if isinstance(opts, str):
+                    opts = [o.strip() for o in opts.split(",") if o.strip()]
+                opts = opts or ["(선택지 미입력)"]
                 st.radio(f"[학부모 화면 예시] {lbl}", opts, disabled=True, key=f"pv_custom_{i}")
             else:
                 st.text_input(f"[학부모 화면 예시] {lbl} (직접 추가)", disabled=True, key=f"pv_custom_{i}")
