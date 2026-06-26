@@ -77,6 +77,7 @@ def generate_announcement_with_ai(title, date, location, supplies, extra_info,
         - 준비물: {supplies}
         - 기타 강조사항: {extra_info}
         {privacy_block}
+        그리고 본문에 반드시 '동의서의 항목에 동의하지 않으실 경우 프로그램 참여가 어려울 수 있습니다'라는 안내를 자연스럽게 포함해줘.
         부드러운 해요체(~합니다, ~바랍니다)를 사용하고 이모지와 줄바꿈을 섞어서 작성해줘.
         """
 
@@ -290,13 +291,13 @@ if current_user_mode == "parent":
 
     # 교사가 선택한 항목만 입력란을 자동으로 만들어 줍니다.
     collected = {}          # 라벨 -> 시트에 저장할 값
+    consent_items = []      # 동의형 항목은 개별 체크 대신 맨 아래 일괄 동의로 처리
     for fid in field_ids:
         f = FIELDS_BY_ID.get(fid)
         if not f:
             continue
         if f["type"] == "consent":
-            agreed = st.checkbox(f"{f['label']}에 동의합니다", key=f"pf_{fid}")
-            collected[f["label"]] = "동의" if agreed else "미동의"
+            consent_items.append(f["label"])
         elif f["type"] == "ssn":
             raw = st.text_input(f["label"], placeholder=f["ph"], key=f"pf_{fid}")
             collected[f["label"]] = mask_ssn(raw)       # 주민번호는 마스킹해서만 저장
@@ -329,7 +330,16 @@ if current_user_mode == "parent":
 
     st.markdown("### ⚖️ 법적 고지 및 개인정보 수집 동의")
     st.caption("본 동의서의 전자서명은 「전자문서 및 전자거래 기본법」 제4조 제1항에 의거하여 친필 서명과 동일한 법적 효력을 가집니다.")
-    agree = st.checkbox("위 내용을 모두 확인하였으며 동의합니다.")
+    if consent_items:
+        st.markdown("**동의가 필요한 항목**")
+        for item in consent_items:
+            st.markdown(f"- {item}")
+    # 고정 안내 문구 (항상 표시)
+    st.warning("⚠️ 위 항목에 동의하지 않으실 경우, 프로그램 참여가 어려울 수 있습니다.")
+    agree = st.checkbox("위 내용을 모두 확인하였으며, 위 모든 항목에 동의합니다.")
+    # 일괄 동의 결과를 각 동의형 항목에 반영
+    for item in consent_items:
+        collected[item] = "동의" if agree else "미동의"
     st.markdown("---")
     
     if agree:
@@ -522,17 +532,18 @@ else:
         st.caption("보목지역아동센터 가정통신문")
         st.info(desc)
         st.markdown("##### 📋 학부모가 입력하게 될 항목")
-        # 교사가 선택한 항목 그대로 미리보기에 표시
+        # 교사가 선택한 항목 그대로 미리보기에 표시 (동의형은 일괄 동의로 모음)
+        pv_consent_items = []
         for fid in selected_ids:
             f = FIELDS_BY_ID.get(fid)
             if not f:
                 continue
             if f["type"] == "consent":
-                st.checkbox(f"[학부모 화면 예시] {f['label']}에 동의합니다", disabled=True, key=f"pv_{fid}")
+                pv_consent_items.append(f["label"])
             else:
                 tag = ""
                 if f["type"] == "ssn":
-                    tag = " (보험 가입용·마스킹 저장)"
+                    tag = " (마스킹 저장)"
                 elif f["type"] == "account":
                     tag = " (마스킹 저장)"
                 st.text_input(f"[학부모 화면 예시] {f['label']}{tag}",
@@ -548,7 +559,12 @@ else:
                 st.text_input(f"[학부모 화면 예시] {lbl} (직접 추가)", disabled=True, key=f"pv_custom_{i}")
         st.markdown("##### ⚖️ 법적 고지 및 개인정보 수집 동의")
         st.caption("본 동의서의 전자서명은 친필 서명과 동일한 법적 효력을 가집니다.")
-        st.checkbox("[학부모 화면 예시] 위 내용을 모두 확인하였으며 동의합니다.", disabled=True, key="p_agree")
+        if pv_consent_items:
+            st.markdown("**동의가 필요한 항목**")
+            for item in pv_consent_items:
+                st.markdown(f"- {item}")
+        st.warning("⚠️ 위 항목에 동의하지 않으실 경우, 프로그램 참여가 어려울 수 있습니다.")
+        st.checkbox("[학부모 화면 예시] 위 내용을 모두 확인하였으며, 위 모든 항목에 동의합니다.", disabled=True, key="p_agree")
         st.markdown('</div>', unsafe_allow_html=True)
         st.markdown("---")
         
