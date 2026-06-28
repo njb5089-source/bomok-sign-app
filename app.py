@@ -296,6 +296,7 @@ def save_to_gsheet(row):
         return False, str(e)
 
 
+@st.cache_data(ttl=10, show_spinner=False)
 def load_submissions():
     """'제출현황' 탭의 모든 제출 기록을 불러옵니다. (없거나 실패 시 None)"""
     try:
@@ -325,6 +326,7 @@ def grade_category(grade):
     return "기타"
 
 
+@st.cache_data(ttl=10, show_spinner=False)
 def load_roster():
     """'명단' 탭의 참여 대상 목록을 불러옵니다. (시트 연결 실패 시 None, 없으면 [])"""
     try:
@@ -438,6 +440,7 @@ def publish_announcement(data):
         return False, str(e)
 
 
+@st.cache_data(ttl=10, show_spinner=False)
 def load_announcement(aid=None):
     """발송안내문에서 id로 안내문을 불러옵니다. id가 없으면 가장 최근에 발행한 것."""
     try:
@@ -454,6 +457,7 @@ def load_announcement(aid=None):
         return None
 
 
+@st.cache_data(ttl=10, show_spinner=False)
 def load_all_announcements():
     """발송한 모든 안내문을 최근순으로 반환합니다. (실패 시 None)"""
     try:
@@ -1113,6 +1117,7 @@ else:
                 st.session_state.publish_error = None if ok else err
                 st.session_state.published_id = new_aid if ok else ""
                 st.session_state.generated = True
+                st.cache_data.clear()   # 새 안내문이 목록에 바로 보이게 캐시 갱신
                 st.balloons()
                 st.rerun()
 
@@ -1161,6 +1166,7 @@ else:
                     st.code(PARENT_BASE + "&id=" + aid, language="text")
                     if st.button("🗑 이 안내문 삭제", key=f"del_ann_{aid}"):
                         delete_announcement(aid)
+                        st.cache_data.clear()
                         st.rerun()
 
         # =====================================================================
@@ -1171,6 +1177,7 @@ else:
         st.caption("제출된 동의서와 전자서명을 확인합니다. (나중에 동의 내용·서명을 검증할 때 사용)")
         if st.button("🔄 제출 명단 불러오기"):
             st.session_state.show_submissions = True
+            st.cache_data.clear()
         if st.session_state.get("show_submissions"):
             records = load_submissions()
             if records is None:
@@ -1215,6 +1222,7 @@ else:
                 if st.form_submit_button("명단에 추가"):
                     if new_child and new_phone:
                         ok, err = add_roster_entry(new_child, new_grade, new_guardian, new_phone)
+                        st.cache_data.clear()
                         if ok:
                             st.success(f"'{new_child}' 추가됨")
                         else:
@@ -1230,6 +1238,7 @@ else:
                     d1.write(f"- {r.get('아동명','')} ({r.get('학년','')}) / {r.get('보호자명','')} / {r.get('전화번호','')}")
                     if d2.button("🗑", key=f"del_roster_{i}"):
                         delete_roster_entry(token)
+                        st.cache_data.clear()
                         st.rerun()
 
         # (2) 참여 대상 선택 (퀵 필터 + 체크박스 + 요약)
@@ -1289,4 +1298,5 @@ else:
                 st.markdown("**⏳ 미제출 명단 (선택 대상 중)** — 이 아동들에게 다시 안내하세요")
                 st.write("  ·  ".join(f"{r.get('아동명','')}({r.get('학년','')})" for r in pending))
             if st.button("🔄 제출 현황 새로고침"):
+                st.cache_data.clear()
                 st.rerun()
