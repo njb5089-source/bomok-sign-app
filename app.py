@@ -813,18 +813,34 @@ else:
 
     st.markdown("---")
     st.write("### 🧩 2. 받을 개인정보 항목 선택")
-    st.caption("받을 정보를 눌러 선택하세요. 선택한 항목은 진하게 표시됩니다. (아동 성명·보호자 성명은 항상 포함)")
-    if "field_labels" not in st.session_state:
-        st.session_state.field_labels = ["보호자 연락처"]   # 기본 추천
-    if is_outdoor and "아동 주민등록번호" not in st.session_state.field_labels:
+    st.caption("왼쪽에서 ➕로 받을 항목을 담고, 오른쪽에서 ✖로 빼세요. (아동 성명·보호자 성명은 항상 포함)")
+    if "sel_fields" not in st.session_state:
+        st.session_state.sel_fields = ["보호자 연락처"]   # 기본 추천
+    if is_outdoor and "아동 주민등록번호" not in st.session_state.sel_fields:
         st.info("🤖 야외 활동으로 감지됐어요. 보험 가입이 필요하면 '아동 주민등록번호'를 추가하세요.")
-    selected_labels = st.pills(
-        "받을 정보 선택",
-        options=[f["label"] for f in OPTIONAL_FIELDS],
-        selection_mode="multi",
-        key="field_labels",
-        disabled=is_disabled,
-    ) or []
+
+    all_opt_labels = [f["label"] for f in OPTIONAL_FIELDS]
+    selected_labels = [lbl for lbl in st.session_state.sel_fields if lbl in all_opt_labels]
+    available_labels = [lbl for lbl in all_opt_labels if lbl not in selected_labels]
+
+    pool_l, pool_r = st.columns(2)
+    with pool_l:
+        st.markdown("**📋 받을 수 있는 항목**")
+        if not available_labels:
+            st.caption("모두 선택됨")
+        for lbl in available_labels:
+            if st.button(f"➕ {lbl}", key=f"add_field_{lbl}", use_container_width=True):
+                st.session_state.sel_fields.append(lbl)
+                st.rerun()
+    with pool_r:
+        st.markdown("**✅ 선택된 항목**")
+        if not selected_labels:
+            st.caption("아직 없음")
+        for lbl in selected_labels:
+            if st.button(f"✖ {lbl}", key=f"rm_field_{lbl}", use_container_width=True):
+                st.session_state.sel_fields.remove(lbl)
+                st.rerun()
+
     selected_ids = ALWAYS_IDS + [LABEL_TO_ID[lbl] for lbl in selected_labels]
 
     # 직접 추가 질문 빌더 — 구글 폼처럼 질문을 1개씩 추가하고 형식을 고릅니다.
