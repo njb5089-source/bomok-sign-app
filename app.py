@@ -594,6 +594,36 @@ FLOAT_BTN_JS = """
 """
 
 
+def link_copy_widget(url):
+    """링크를 큰 복사 버튼과 함께 보여줍니다(눈에 잘 띄게)."""
+    safe = str(url).replace('"', "&quot;")
+    html = (
+        '<div style="display:flex;gap:6px;align-items:center;font-family:sans-serif;">'
+        f'<input id="lnk" value="{safe}" readonly onclick="this.select()" '
+        'style="flex:1;min-width:0;padding:9px;border:1px solid #ccc;border-radius:8px;font-size:13px;"/>'
+        '<button onclick="cp()" style="padding:10px 16px;background:#4F46E5;color:#fff;border:none;'
+        'border-radius:8px;font-weight:bold;cursor:pointer;white-space:nowrap;">📋 복사</button></div>'
+        '<div id="m" style="color:#10B981;font-size:13px;margin-top:6px;font-family:sans-serif;"></div>'
+        '<script>function cp(){var i=document.getElementById("lnk");i.select();'
+        'i.setSelectionRange(0,99999);try{navigator.clipboard.writeText(i.value);}catch(e){}'
+        'try{document.execCommand("copy");}catch(e){}'
+        'document.getElementById("m").textContent="\\u2705 \\ubcf5\\uc0ac\\ub428! \\uce74\\uce74\\uc624\\ud1a1\\uc5d0 \\ubd99\\uc5ec\\ub123\\uc73c\\uc138\\uc694";}</script>'
+    )
+    components.html(html, height=86)
+
+
+def goto_tab_js(step):
+    """JS로 지정한 단계 탭(1·2·3)으로 자동 전환합니다."""
+    idx = int(step) - 1
+    js = (
+        "<script>setTimeout(function(){"
+        "var t=window.parent.document.querySelectorAll('[data-testid=\"stTabs\"] button[role=\"tab\"]');"
+        f"if(t[{idx}]) t[{idx}].click();"
+        "}, 150);</script>"
+    )
+    components.html(js, height=0)
+
+
 # =====================================================================
 # 🎨 3. 디자인 고도화 CSS 정의
 # =====================================================================
@@ -814,6 +844,9 @@ else:
 
     tab1, tab2, tab3 = st.tabs(["1️⃣ 작성", "2️⃣ 시안 확인·수정", "3️⃣ 발송·관리"])
     components.html(FLOAT_BTN_JS, height=0)   # 떠다니는 ↑/‹/› 버튼 주입
+    _goto = st.session_state.pop("goto_tab", None)
+    if _goto:
+        goto_tab_js(_goto)   # AI 생성/발행 후 다음 단계 탭으로 자동 이동
 
     with tab1:
         st.write("### 📝 1. 프로그램 기본 정보 입력")
@@ -1032,6 +1065,7 @@ else:
         if st.button("🪄 AI 안내문 초안 자동 생성하기"):
             with st.spinner("Gemini AI가 멋진 가정통신문을 작성하고 있습니다..."):
                 st.session_state.ai_generated_desc = generate_announcement_with_ai(title, info_items_data)
+                st.session_state.goto_tab = 2   # 완료 후 2단계(시안)로 자동 이동
                 st.rerun()
 
     with tab2:
@@ -1117,6 +1151,7 @@ else:
                 st.session_state.publish_error = None if ok else err
                 st.session_state.published_id = new_aid if ok else ""
                 st.session_state.generated = True
+                st.session_state.goto_tab = 3   # 발행 후 3단계(발송·관리)로 자동 이동
                 st.cache_data.clear()   # 새 안내문이 목록에 바로 보이게 캐시 갱신
                 st.balloons()
                 st.rerun()
@@ -1136,8 +1171,9 @@ else:
 
             parent_link = PARENT_BASE + "&id=" + str(st.session_state.get("published_id", ""))
 
-            st.info("💡 아래 상자 오른쪽 끝의 복사 버튼을 누른 뒤, 카카오톡에 전송해 보세요!")
-            st.code(parent_link, language="text")
+            st.link_button("🔗 링크 열어보기 (학부모 화면 확인용)", parent_link, use_container_width=True)
+            st.caption("아래 링크를 복사해 카카오톡에 전송하세요 👇")
+            link_copy_widget(parent_link)
 
             if st.button("🆕 새 가정통신문 작성하기"):
                 st.session_state.generated = False
@@ -1163,7 +1199,9 @@ else:
                 with st.container(border=True):
                     st.markdown(f"**🌲 {a.get('title','(제목 없음)')}**  ·  발행일 {a.get('issue_date','')}")
                     st.caption(f"📥 제출 {cnt}건")
-                    st.code(PARENT_BASE + "&id=" + aid, language="text")
+                    _alink = PARENT_BASE + "&id=" + aid
+                    st.link_button("🔗 열어보기", _alink)
+                    link_copy_widget(_alink)
                     if st.button("🗑 이 안내문 삭제", key=f"del_ann_{aid}"):
                         delete_announcement(aid)
                         st.cache_data.clear()
