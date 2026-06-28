@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import google.generativeai as genai
 from streamlit_drawable_canvas import st_canvas
 import requests
@@ -521,6 +522,35 @@ LEGAL_NOTICE = """\
 4. **민감·고유식별정보 보호** — 주민등록번호 등 고유식별정보 및 건강정보 등 민감정보는 관련 법령에 근거하여 별도로 안전하게 관리하며, 수집 목적 외의 용도로 이용하지 않습니다.
 """
 
+# 떠다니는(고정) 버튼: ↑맨위로 / ‹›탭 이동. 부모 문서에 주입해 스크롤과 무관하게 표시.
+FLOAT_BTN_JS = """
+<script>
+(function(){
+  var doc = window.parent.document;
+  ['floatTop','floatPrev','floatNext'].forEach(function(id){ var e=doc.getElementById(id); if(e) e.remove(); });
+  function mkBtn(id, txt, css){
+    var b=doc.createElement('button'); b.id=id; b.textContent=txt;
+    b.style.cssText='position:fixed;z-index:99999;border:none;border-radius:50%;width:46px;height:46px;'+
+      'font-size:22px;line-height:46px;text-align:center;padding:0;color:#fff;cursor:pointer;'+
+      'background:rgba(79,70,229,0.92);box-shadow:0 2px 8px rgba(0,0,0,.3);'+css;
+    doc.body.appendChild(b); return b;
+  }
+  function tabBtns(){ return doc.querySelectorAll('[data-testid="stTabs"] button[role="tab"]'); }
+  function activeIdx(){ var t=tabBtns(); for(var i=0;i<t.length;i++){ if(t[i].getAttribute('aria-selected')==='true') return i; } return 0; }
+  function toTop(){
+    try{ (doc.querySelector('section.main')||doc.querySelector('[data-testid="stMain"]')||doc.scrollingElement).scrollTo({top:0,behavior:'smooth'}); }catch(e){}
+    try{ window.parent.scrollTo({top:0,behavior:'smooth'}); }catch(e){}
+  }
+  var top=mkBtn('floatTop','↑','right:14px;bottom:16px;');
+  top.onclick=toTop;
+  var prev=mkBtn('floatPrev','‹','left:6px;top:50%;transform:translateY(-50%);');
+  prev.onclick=function(){ var t=tabBtns(), i=activeIdx(); if(i>0){ t[i-1].click(); toTop(); } };
+  var next=mkBtn('floatNext','›','right:6px;top:50%;transform:translateY(-50%);');
+  next.onclick=function(){ var t=tabBtns(), i=activeIdx(); if(i<t.length-1){ t[i+1].click(); toTop(); } };
+})();
+</script>
+"""
+
 
 # =====================================================================
 # 🎨 3. 디자인 고도화 CSS 정의
@@ -740,6 +770,7 @@ else:
     st.subheader("가정통신문 작성 및 AI 자동화 시스템")
 
     tab1, tab2, tab3 = st.tabs(["1️⃣ 작성", "2️⃣ 시안 확인·수정", "3️⃣ 발송·관리"])
+    components.html(FLOAT_BTN_JS, height=0)   # 떠다니는 ↑/‹/› 버튼 주입
 
     with tab1:
         st.write("### 📝 1. 프로그램 기본 정보 입력")
