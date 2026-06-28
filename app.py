@@ -738,454 +738,459 @@ if current_user_mode == "parent":
 else:
     st.title("🛡️ 보목지역아동센터 교사 포털")
     st.subheader("가정통신문 작성 및 AI 자동화 시스템")
-    
-    st.write("### 📝 1. 프로그램 기본 정보 입력")
-    is_disabled = False   # 미리보기 모드 제거 — 항상 편집 가능
 
-    if "info_title" not in st.session_state:
-        st.session_state.info_title = "섶섬 생태 탐방 및 자리돔 낚시 체험"
-    title = st.text_input("제목", key="info_title", disabled=is_disabled)
-    issue_date = st.date_input("발행일 (개인정보 보유기간 기산일)", disabled=is_disabled)
-    issue_str = issue_date.strftime("%Y-%m-%d") if issue_date else ""
+    tab1, tab2, tab3 = st.tabs(["1️⃣ 작성", "2️⃣ 시안 확인·수정", "3️⃣ 발송·관리"])
 
-    # 참여 대상 — 중복 선택 가능. 아래 '참여 대상 선택/제출 확인'과 연동됩니다.
-    if "target_categories" not in st.session_state:
-        st.session_state.target_categories = ["초등 저학년"]
-    target_cats = st.multiselect(
-        "참여 대상 (여러 그룹·학년 선택 가능 · 아래 제출 확인과 연동)",
-        ["초등 저학년", "초등 고학년", "중등부",
-         "초1", "초2", "초3", "초4", "초5", "초6", "중1", "중2", "중3"],
-        key="target_categories", disabled=is_disabled,
-    )
+    with tab1:
+        st.write("### 📝 1. 프로그램 기본 정보 입력")
+        is_disabled = False   # 미리보기 모드 제거 — 항상 편집 가능
 
-    # 기본 정보 항목 빌더 — 항목을 추가/삭제할 수 있습니다.
-    if "info_items" not in st.session_state:
-        st.session_state.info_iid = 0
-        st.session_state.info_items = []
-        for lbl, val in [
-            ("발행 주체", "보목지역아동센터"),
-            ("일시", "2026년 7월 11일(토) 09:00 ~ 16:00"),
-            ("장소", "섶섬 일대 및 서귀포 보목항"),
-            ("준비물", "편한 복장, 운동화, 개인 물병, 모자"),
-            ("문의 연락처", "보목지역아동센터 ☎ 064-000-0000"),
-            ("기타 강조 사항", "센터 차량을 이용하며 안전요원이 동행합니다."),
-        ]:
-            iid = st.session_state.info_iid
-            st.session_state.info_items.append({"id": iid})
-            st.session_state[f"info_label_{iid}"] = lbl
-            st.session_state[f"info_value_{iid}"] = val
+        if "info_title" not in st.session_state:
+            st.session_state.info_title = "섶섬 생태 탐방 및 자리돔 낚시 체험"
+        title = st.text_input("제목", key="info_title", disabled=is_disabled)
+        issue_date = st.date_input("발행일 (개인정보 보유기간 기산일)", disabled=is_disabled)
+        issue_str = issue_date.strftime("%Y-%m-%d") if issue_date else ""
+
+        # 참여 대상 — 중복 선택 가능. 아래 '참여 대상 선택/제출 확인'과 연동됩니다.
+        if "target_categories" not in st.session_state:
+            st.session_state.target_categories = ["초등 저학년"]
+        target_cats = st.multiselect(
+            "참여 대상 (여러 그룹·학년 선택 가능 · 아래 제출 확인과 연동)",
+            ["초등 저학년", "초등 고학년", "중등부",
+             "초1", "초2", "초3", "초4", "초5", "초6", "중1", "중2", "중3"],
+            key="target_categories", disabled=is_disabled,
+        )
+
+        # 기본 정보 항목 빌더 — 항목을 추가/삭제할 수 있습니다.
+        if "info_items" not in st.session_state:
+            st.session_state.info_iid = 0
+            st.session_state.info_items = []
+            for lbl, val in [
+                ("발행 주체", "보목지역아동센터"),
+                ("일시", "2026년 7월 11일(토) 09:00 ~ 16:00"),
+                ("장소", "섶섬 일대 및 서귀포 보목항"),
+                ("준비물", "편한 복장, 운동화, 개인 물병, 모자"),
+                ("문의 연락처", "보목지역아동센터 ☎ 064-000-0000"),
+                ("기타 강조 사항", "센터 차량을 이용하며 안전요원이 동행합니다."),
+            ]:
+                iid = st.session_state.info_iid
+                st.session_state.info_items.append({"id": iid})
+                st.session_state[f"info_label_{iid}"] = lbl
+                st.session_state[f"info_value_{iid}"] = val
+                st.session_state.info_iid += 1
+
+        st.caption("항목명과 내용을 입력하세요. 필요한 항목은 ➕로 추가, 🗑로 삭제할 수 있습니다.")
+        remove_iid = None
+        for it in st.session_state.info_items:
+            iid = it["id"]
+            ic1, ic2, ic3 = st.columns([3, 6, 1], vertical_alignment="center")
+            ic1.text_input("항목명", key=f"info_label_{iid}", disabled=is_disabled,
+                           placeholder="예: 장소", label_visibility="collapsed")
+            ic2.text_input("내용", key=f"info_value_{iid}", disabled=is_disabled,
+                           placeholder="내용 입력", label_visibility="collapsed")
+            if not is_disabled and ic3.button("🗑", key=f"info_del_{iid}"):
+                remove_iid = iid
+        if remove_iid is not None:
+            st.session_state.info_items = [x for x in st.session_state.info_items if x["id"] != remove_iid]
+            st.rerun()
+        if not is_disabled and st.button("➕ 항목 추가", key="info_add"):
+            st.session_state.info_items.append({"id": st.session_state.info_iid})
             st.session_state.info_iid += 1
 
-    st.caption("항목명과 내용을 입력하세요. 필요한 항목은 ➕로 추가, 🗑로 삭제할 수 있습니다.")
-    remove_iid = None
-    for it in st.session_state.info_items:
-        iid = it["id"]
-        ic1, ic2, ic3 = st.columns([3, 6, 1], vertical_alignment="center")
-        ic1.text_input("항목명", key=f"info_label_{iid}", disabled=is_disabled,
-                       placeholder="예: 장소", label_visibility="collapsed")
-        ic2.text_input("내용", key=f"info_value_{iid}", disabled=is_disabled,
-                       placeholder="내용 입력", label_visibility="collapsed")
-        if not is_disabled and ic3.button("🗑", key=f"info_del_{iid}"):
-            remove_iid = iid
-    if remove_iid is not None:
-        st.session_state.info_items = [x for x in st.session_state.info_items if x["id"] != remove_iid]
-        st.rerun()
-    if not is_disabled and st.button("➕ 항목 추가", key="info_add"):
-        st.session_state.info_items.append({"id": st.session_state.info_iid})
-        st.session_state.info_iid += 1
-
-    # 입력된 정보 항목 모으기 (라벨/내용 중 하나라도 있으면)
-    info_items_data = []
-    for it in st.session_state.info_items:
-        iid = it["id"]
-        lbl = st.session_state.get(f"info_label_{iid}", "").strip()
-        val = st.session_state.get(f"info_value_{iid}", "").strip()
-        if lbl or val:
-            info_items_data.append((lbl, val))
-    if target_cats:
-        info_items_data.insert(0, ("참여 대상", ", ".join(target_cats)))
-    if issue_str:
-        info_items_data.insert(0, ("발행일", issue_str))
-
-    # 야외/수상/숙박 자동 감지는 모든 입력 내용에서 키워드를 찾습니다.
-    all_info_text = " ".join(v for _, v in info_items_data)
-    is_outdoor = any(k in all_info_text for k in ["섬", "항", "바다", "산", "야외", "캠프", "공원", "체험"])
-
-    st.markdown("---")
-    st.write("### 🧩 2. 받을 개인정보 항목 선택")
-    st.caption("왼쪽에서 ➕로 받을 항목을 담고, 오른쪽에서 ✖로 빼세요. (아동 성명·보호자 성명은 항상 포함)")
-    if "sel_fields" not in st.session_state:
-        st.session_state.sel_fields = ["보호자 연락처"]   # 기본 추천
-    if is_outdoor and "아동 주민등록번호" not in st.session_state.sel_fields:
-        st.info("🤖 야외 활동으로 감지됐어요. 보험 가입이 필요하면 '아동 주민등록번호'를 추가하세요.")
-
-    all_opt_labels = [f["label"] for f in OPTIONAL_FIELDS]
-    selected_labels = [lbl for lbl in st.session_state.sel_fields if lbl in all_opt_labels]
-    available_labels = [lbl for lbl in all_opt_labels if lbl not in selected_labels]
-
-    pool_l, pool_r = st.columns(2)
-    with pool_l:
-        st.markdown("**📋 받을 수 있는 항목**")
-        if not available_labels:
-            st.caption("모두 선택됨")
-        for lbl in available_labels:
-            if st.button(f"➕ {lbl}", key=f"add_field_{lbl}", use_container_width=True):
-                st.session_state.sel_fields.append(lbl)
-                st.rerun()
-    with pool_r:
-        st.markdown("**✅ 선택된 항목**")
-        if not selected_labels:
-            st.caption("아직 없음")
-        for lbl in selected_labels:
-            if st.button(f"✖ {lbl}", key=f"rm_field_{lbl}", use_container_width=True):
-                st.session_state.sel_fields.remove(lbl)
-                st.rerun()
-
-    selected_ids = ALWAYS_IDS + [LABEL_TO_ID[lbl] for lbl in selected_labels]
-
-    # 직접 추가 질문 빌더 — 구글 폼처럼 질문을 1개씩 추가하고 형식을 고릅니다.
-    st.markdown("**➕ 직접 추가 질문** (목록에 없는 항목을 구글 폼처럼 직접 구성)")
-    if "custom_questions" not in st.session_state:
-        st.session_state.custom_questions = []
-    if "next_qid" not in st.session_state:
-        st.session_state.next_qid = 1
-    if not is_disabled and st.button("➕ 질문 추가"):
-        # st.rerun()을 호출하지 않습니다. 호출하면 기존 질문 위젯이 그려지기 전에
-        # 새로고침되어 객관식 보기 등 입력값이 사라집니다. 같은 실행 안에서 바로 렌더됩니다.
-        st.session_state.custom_questions.append({"id": st.session_state.next_qid})
-        st.session_state.next_qid += 1
-
-    QTYPES = ["직접 기입", "동의여부", "객관식"]
-    remove_id = None
-    for q in st.session_state.custom_questions:
-        qid = q["id"]
-        with st.container(border=True):   # 질문을 카드로 묶어 다른 질문과 구분
-            c1, c2, c3 = st.columns([5, 3, 1])
-            c1.text_input("질문", key=f"cq_label_{qid}", disabled=is_disabled, placeholder="예: 수영 가능 여부")
-            qtype = c2.selectbox("형식", QTYPES, key=f"cq_type_{qid}", disabled=is_disabled)
-            if not is_disabled and c3.button("🗑", key=f"cq_del_{qid}"):
-                remove_id = qid
-            if qtype == "동의여부":
-                st.caption("　↳ 학부모 화면의 '동의가 필요한 항목'에 추가됩니다.")
-            elif qtype == "객관식":
-                ids_key = f"opt_ids_{qid}"
-                if ids_key not in st.session_state:
-                    st.session_state[ids_key] = [1, 2]   # 기본 선택지 2개
-                if f"next_oid_{qid}" not in st.session_state:
-                    st.session_state[f"next_oid_{qid}"] = max(st.session_state[ids_key], default=0) + 1
-                st.caption("　└ 선택지")
-                oids = st.session_state[ids_key]
-                remove_oid = None
-                for k, oid in enumerate(oids):
-                    _sp, ocol, dcol = st.columns([1, 7, 1])   # 왼쪽 빈칸 = 들여쓰기
-                    ocol.text_input("선택지", key=f"cq_opt_{qid}_{oid}", disabled=is_disabled,
-                                    placeholder=f"선택지 {k + 1}", label_visibility="collapsed")
-                    if not is_disabled and len(oids) > 1 and dcol.button("🗑", key=f"opt_del_{qid}_{oid}"):
-                        remove_oid = oid
-                if remove_oid is not None:
-                    st.session_state[ids_key] = [o for o in oids if o != remove_oid]
-                _sp2, addcol = st.columns([1, 7])
-                if not is_disabled and addcol.button("➕ 선택지 추가", key=f"add_opt_{qid}", type="tertiary"):
-                    st.session_state[ids_key].append(st.session_state[f"next_oid_{qid}"])
-                    st.session_state[f"next_oid_{qid}"] += 1
-    if remove_id is not None:
-        st.session_state.custom_questions = [
-            qq for qq in st.session_state.custom_questions if qq["id"] != remove_id
-        ]
-        st.rerun()
-
-    # 작성된 질문(라벨이 있는 것만)을 정의로 모읍니다.
-    custom_questions_defs = []
-    for q in st.session_state.custom_questions:
-        qid = q["id"]
-        lbl = st.session_state.get(f"cq_label_{qid}", "").strip()
-        if not lbl:
-            continue
-        qtype = st.session_state.get(f"cq_type_{qid}", "직접 기입")
-        opts_list = []
-        if qtype == "객관식":
-            oids = st.session_state.get(f"opt_ids_{qid}", [])
-            opts_list = [st.session_state.get(f"cq_opt_{qid}_{oid}", "").strip() for oid in oids]
-            opts_list = [o for o in opts_list if o]
-        custom_questions_defs.append({"label": lbl, "type": qtype, "options": opts_list})
-    custom_labels = [q["label"] for q in custom_questions_defs]
-
-    # 상황별 자동 경고/권고
-    is_water = any(k in all_info_text for k in ["바다", "해변", "해수욕", "물놀이", "수영", "계곡", "갯벌", "항", "섬"])
-    is_overnight = any(k in all_info_text for k in ["1박", "2박", "캠프", "캠핑", "숙박", "야영", "수련"])
-    if is_water:
-        st.warning("🌊 수상·물놀이 활동으로 보입니다 → '응급의료 처치 위임 동의'와 안전 항목(예: 수영 가능 여부)을 권장합니다.")
-    if is_overnight:
-        st.warning("🏕️ 숙박 활동으로 보입니다 → '복용 중인 약', '비상 연락처', '응급의료 처치 위임 동의'를 권장합니다.")
-    if "child_ssn" in selected_ids and "third_party" not in selected_ids:
-        st.warning("📑 주민등록번호는 보통 보험사 등에 제공됩니다 → '개인정보 제3자 제공 동의'도 함께 받으세요.")
-    sensitive_picked = [FIELDS_BY_ID[i]["label"] for i in selected_ids if i in SENSITIVE_IDS]
-    if sensitive_picked:
-        st.warning(
-            "🔒 민감정보(" + ", ".join(sensitive_picked) + ") 수집 → 본문에 수집 목적을 명시해야 합니다. "
-            "(아래 '수집·이용 목적'에 직접 적어주세요. 정식 버전에서는 암호화 보관 필요)"
-        )
-
-    # 항목마다 '수집·이용 목적'과 '보유 기간'을 지정 → AI가 그대로 사용
-    def _pick(label, options, key):
-        """드롭다운 + '기타' 직접 입력을 한 번에 처리"""
-        choice = st.selectbox(label, options + ["기타(직접 입력)"], key=key, disabled=is_disabled)
-        if choice == "기타(직접 입력)":
-            return st.text_input(f"　└ {label} 직접 입력", key=f"{key}_etc", disabled=is_disabled).strip()
-        return choice
-
-    collection_details = []   # 하단 고정 표(수집 항목/목적/보유기간)에 들어갈 내역
-    if selected_labels or custom_labels:
-        st.markdown("**📌 각 항목의 수집·이용 목적** (보유 기간은 관련 법령 기준으로 자동 적용)")
-        for lbl in selected_labels:
-            fid = LABEL_TO_ID[lbl]
-            ret = RETENTION_DEFAULTS.get(fid, DEFAULT_RETENTION)
-            pval = _pick(f"· {lbl} 수집·이용 목적", PURPOSE_OPTIONS.get(fid, []), f"purpose_{fid}")
-            st.caption(f"　└ 보유기간(자동): {ret}")
-            collection_details.append({"item": lbl, "purpose": pval or "-", "retention": ret})
-        for i, lbl in enumerate(custom_labels):
-            pval = st.text_input(f"· {lbl} 수집·이용 목적", key=f"purpose_custom_{i}", disabled=is_disabled).strip()
-            st.caption(f"　└ 보유기간(자동): {DEFAULT_RETENTION}")
-            collection_details.append({"item": lbl, "purpose": pval or "-", "retention": DEFAULT_RETENTION})
-
-    st.markdown("---")
-    st.write("### 🤖 3. AI 안내문 본문 생성")
-    st.caption("초안을 만들면 아래 '학부모 시안'에 바로 반영됩니다. 본문은 시안에서 직접 수정하세요.")
-
-    if st.button("🪄 AI 안내문 초안 자동 생성하기"):
-        with st.spinner("Gemini AI가 멋진 가정통신문을 작성하고 있습니다..."):
-            st.session_state.ai_generated_desc = generate_announcement_with_ai(title, info_items_data)
-            st.rerun()
-
-    if True:
-        st.markdown("---")
-        st.markdown("### 📱 학부모 시안 (본문 여기서 바로 수정 가능)")
-        st.markdown('<div class="preview-container">', unsafe_allow_html=True)
-        st.markdown(f"### 🌲 {title}")
-        st.caption("보목지역아동센터 가정통신문")
+        # 입력된 정보 항목 모으기 (라벨/내용 중 하나라도 있으면)
+        info_items_data = []
+        for it in st.session_state.info_items:
+            iid = it["id"]
+            lbl = st.session_state.get(f"info_label_{iid}", "").strip()
+            val = st.session_state.get(f"info_value_{iid}", "").strip()
+            if lbl or val:
+                info_items_data.append((lbl, val))
+        if target_cats:
+            info_items_data.insert(0, ("참여 대상", ", ".join(target_cats)))
         if issue_str:
-            st.caption(f"📅 발행일: {issue_str}")
-        desc = st.text_area("✏️ 상세 안내 문구 (여기서 수정)", value=st.session_state.ai_generated_desc, height=250)
-        st.session_state.ai_generated_desc = desc
-        st.caption("👁 아래는 학부모 화면에서 실제로 보이는 모습입니다 (줄바꿈·레이아웃 확인용)")
-        st.info(desc)
-        st.markdown("##### 📋 학부모가 입력하게 될 항목")
-        # 교사가 선택한 항목 그대로 미리보기에 표시 (동의형은 일괄 동의로 모음)
-        pv_consent_items = []
-        for fid in selected_ids:
-            f = FIELDS_BY_ID.get(fid)
-            if not f:
-                continue
-            lbl = f["label"]
-            if f["type"] == "consent":
-                pv_consent_items.append(lbl)
-            elif fid in ("guardian_phone", "emergency"):
-                _input_phone(lbl, f"pv_{fid}", disabled=True)
-            elif fid == "child_gender":
-                st.radio(lbl, ["남", "여"], key=f"pv_{fid}", horizontal=True, index=None, disabled=True)
-            elif fid == "child_birth":
-                _input_birth(lbl, f"pv_{fid}", disabled=True)
-            elif fid == "child_ssn":
-                _input_ssn(lbl, f"pv_{fid}", disabled=True)
-            elif fid == "school":
-                _input_school(lbl, f"pv_{fid}", disabled=True)
-            elif fid == "bank_account":
-                _input_bank(lbl, f"pv_{fid}", disabled=True)
-            else:
-                tag = " (마스킹 저장)" if f["type"] == "account" else ""
-                st.text_input(f"[학부모 화면 예시] {lbl}{tag}",
-                              placeholder=f.get("ph", ""), disabled=True, key=f"pv_{fid}")
-        for i, q in enumerate(custom_questions_defs):
-            lbl = q["label"]
-            if q["type"] == "동의여부":
-                pv_consent_items.append(lbl)   # 일괄 동의 목록으로 모음
-            elif q["type"] == "객관식":
-                opts = q.get("options", [])
-                if isinstance(opts, str):
-                    opts = [o.strip() for o in opts.split(",") if o.strip()]
-                opts = opts or ["(선택지 미입력)"]
-                st.radio(f"[학부모 화면 예시] {lbl}", opts, disabled=True, key=f"pv_custom_{i}")
-            else:
-                st.text_input(f"[학부모 화면 예시] {lbl} (직접 추가)", disabled=True, key=f"pv_custom_{i}")
-        st.markdown("##### ⚖️ 법적 고지 및 개인정보 수집 동의")
-        st.caption("본 동의서의 전자서명은 친필 서명과 동일한 법적 효력을 가집니다.")
-        if pv_consent_items:
-            st.markdown("**동의가 필요한 항목**")
-            for item in pv_consent_items:
-                st.markdown(f"- {item}")
-        if collection_details:
-            st.markdown("**📑 개인정보 수집·이용 내역**")
-            if issue_str:
-                st.caption(f"📅 발행일(보유기간 기산일): {issue_str}")
-            st.table([
-                {"수집 항목": c["item"], "이용 목적": c["purpose"], "보유 기간": c["retention"]}
-                for c in collection_details
-            ])
-        st.info(LEGAL_NOTICE)
-        st.checkbox("[학부모 화면 예시] 위 내용을 모두 확인하였으며, 위에 입력한 개인정보 수집 및 위 모든 항목에 동의합니다.", disabled=True, key="p_agree")
-        st.markdown('</div>', unsafe_allow_html=True)
+            info_items_data.insert(0, ("발행일", issue_str))
+
+        # 야외/수상/숙박 자동 감지는 모든 입력 내용에서 키워드를 찾습니다.
+        all_info_text = " ".join(v for _, v in info_items_data)
+        is_outdoor = any(k in all_info_text for k in ["섬", "항", "바다", "산", "야외", "캠프", "공원", "체험"])
+
         st.markdown("---")
-        
-        if st.button("🚀 시안 확정 및 발송 링크 생성"):
-            # 확정한 안내문을 시트에 발행 → 학부모 화면이 읽어가게 함
-            ok, err = publish_announcement({
-                "title": title, "desc": desc, "is_outdoor": is_outdoor,
-                "issue_date": issue_str,
-                "fields": ",".join(selected_ids),
-                "custom_fields": json.dumps(custom_questions_defs, ensure_ascii=False),
-                "collection": json.dumps(collection_details, ensure_ascii=False),
-            })
-            st.session_state.publish_error = None if ok else err
-            st.session_state.generated = True
-            st.balloons()
-            st.rerun()
+        st.write("### 🧩 2. 받을 개인정보 항목 선택")
+        st.caption("왼쪽에서 ➕로 받을 항목을 담고, 오른쪽에서 ✖로 빼세요. (아동 성명·보호자 성명은 항상 포함)")
+        if "sel_fields" not in st.session_state:
+            st.session_state.sel_fields = ["보호자 연락처"]   # 기본 추천
+        if is_outdoor and "아동 주민등록번호" not in st.session_state.sel_fields:
+            st.info("🤖 야외 활동으로 감지됐어요. 보험 가입이 필요하면 '아동 주민등록번호'를 추가하세요.")
 
-    if st.session_state.get("generated", False):
-        st.markdown("---")
-        if st.session_state.get("publish_error"):
-            st.warning(
-                "⚠️ 안내문이 학부모 화면에 안 보일 수 있어요(시트 저장 실패): "
-                f"{st.session_state.publish_error}"
-            )
-        else:
-            st.success("📨 작성하신 안내문이 학부모 화면으로 발행되었습니다.")
-        st.success("🎉 최종 시안 확인 완료! 학부모 전용 링크 시스템이 활성화되었습니다.")
-        st.markdown("### 📱 학부모 발송용 카카오톡 주소")
-        
-        parent_link = "https://bomok-sign-app-hpapp9ikgcxqthmdv6wlgp4.streamlit.app/?mode=parent"
-        
-        st.info("💡 아래 상자 오른쪽 끝의 복사 버튼을 누른 뒤, 카카오톡에 전송해 보세요!")
-        st.code(parent_link, language="text")
-        
-        if st.button("🆕 새 가정통신문 작성하기"):
-            st.session_state.generated = False
-            st.session_state.ai_generated_desc = "위 필수 정보를 입력한 후 버튼을 누르면 AI가 본문을 자동으로 작성합니다."
-            st.rerun()
+        all_opt_labels = [f["label"] for f in OPTIONAL_FIELDS]
+        selected_labels = [lbl for lbl in st.session_state.sel_fields if lbl in all_opt_labels]
+        available_labels = [lbl for lbl in all_opt_labels if lbl not in selected_labels]
 
-    # =====================================================================
-    # 📋 제출 현황 확인 — 제출 명단 + 전자서명 이미지 조회
-    # =====================================================================
-    st.markdown("---")
-    st.write("### 📋 제출 현황 확인")
-    st.caption("제출된 동의서와 전자서명을 확인합니다. (나중에 동의 내용·서명을 검증할 때 사용)")
-    if st.button("🔄 제출 명단 불러오기"):
-        st.session_state.show_submissions = True
-    if st.session_state.get("show_submissions"):
-        records = load_submissions()
-        if records is None:
-            st.error("제출 현황을 불러오지 못했습니다. (시트 연결을 확인해 주세요)")
-        elif len(records) == 0:
-            st.info("아직 제출된 동의서가 없습니다.")
-        else:
-            st.success(f"총 {len(records)}건이 제출되었습니다.")
-            for rec in reversed(records):   # 최근 제출이 위로 오도록
-                child = rec.get("아동 성명", "")
-                guardian = rec.get("보호자 성명", "")
-                when = rec.get("제출시각", "")
-                with st.expander(f"🧾 {when} · {child} (보호자: {guardian})"):
-                    for k, v in rec.items():
-                        if k == "서명이미지" or not str(v).strip():
-                            continue
-                        st.write(f"- **{k}**: {v}")
-                    sig = rec.get("서명이미지", "")
-                    if sig:
-                        try:
-                            st.image(base64.b64decode(sig), caption="전자서명", width=300)
-                        except Exception:
-                            st.caption("⚠️ 서명 이미지를 불러오지 못했습니다.")
-                    else:
-                        st.caption("서명 이미지 없음(구버전 제출)")
-
-    # =====================================================================
-    # 👨‍👩‍👧 참여 대상 관리 + 개별 발송 + 미제출 리마인드
-    # =====================================================================
-    st.markdown("---")
-    st.write("### 👨‍👩‍👧 참여 대상 선택")
-    st.caption("센터 아동을 미리 등록해두고, 이번 프로그램 참여 대상을 골라 체크하세요.")
-
-    # (1) 명단 등록 / 관리
-    with st.expander("➕ 센터 아동 명단 등록 / 관리", expanded=False):
-        with st.form("roster_add", clear_on_submit=True):
-            rc1, rc2, rc3, rc4 = st.columns([3, 2, 3, 3])
-            new_child = rc1.text_input("아동명")
-            new_grade = rc2.selectbox("학년", GRADES)
-            new_guardian = rc3.text_input("보호자명")
-            new_phone = rc4.text_input("전화번호", placeholder="01012345678")
-            if st.form_submit_button("명단에 추가"):
-                if new_child and new_phone:
-                    ok, err = add_roster_entry(new_child, new_grade, new_guardian, new_phone)
-                    if ok:
-                        st.success(f"'{new_child}' 추가됨")
-                    else:
-                        st.error(f"추가 실패: {err}")
-                else:
-                    st.warning("아동명과 전화번호는 필수입니다.")
-        _roster = load_roster()
-        if _roster:
-            st.caption(f"등록 인원: {len(_roster)}명")
-            for i, r in enumerate(_roster):
-                token = r.get("대상ID")
-                d1, d2 = st.columns([6, 1])
-                d1.write(f"- {r.get('아동명','')} ({r.get('학년','')}) / {r.get('보호자명','')} / {r.get('전화번호','')}")
-                if d2.button("🗑", key=f"del_roster_{i}"):
-                    delete_roster_entry(token)
+        pool_l, pool_r = st.columns(2)
+        with pool_l:
+            st.markdown("**📋 받을 수 있는 항목**")
+            if not available_labels:
+                st.caption("모두 선택됨")
+            for lbl in available_labels:
+                if st.button(f"➕ {lbl}", key=f"add_field_{lbl}", use_container_width=True):
+                    st.session_state.sel_fields.append(lbl)
+                    st.rerun()
+        with pool_r:
+            st.markdown("**✅ 선택된 항목**")
+            if not selected_labels:
+                st.caption("아직 없음")
+            for lbl in selected_labels:
+                if st.button(f"✖ {lbl}", key=f"rm_field_{lbl}", use_container_width=True):
+                    st.session_state.sel_fields.remove(lbl)
                     st.rerun()
 
-    # (2) 참여 대상 선택 (퀵 필터 + 체크박스 + 요약)
-    roster = load_roster()
-    if roster is None:
-        st.error("명단을 불러오지 못했습니다. (시트 연결 확인)")
-    elif not roster:
-        st.info("위에서 센터 아동을 먼저 등록해 주세요.")
-    else:
-        # 위 '참여 대상' 그룹과 연동 — 버튼 한 번으로 해당 그룹 자동 체크
-        target_cats = st.session_state.get("target_categories", [])
-        st.caption(f"위에서 정한 참여 대상: **{', '.join(target_cats) if target_cats else '(미지정)'}**")
-        qc1, qc2 = st.columns(2)
-        if qc1.button("✅ 참여 대상 그룹 자동 체크", use_container_width=True):
+        selected_ids = ALWAYS_IDS + [LABEL_TO_ID[lbl] for lbl in selected_labels]
+
+        # 직접 추가 질문 빌더 — 구글 폼처럼 질문을 1개씩 추가하고 형식을 고릅니다.
+        st.markdown("**➕ 직접 추가 질문** (목록에 없는 항목을 구글 폼처럼 직접 구성)")
+        if "custom_questions" not in st.session_state:
+            st.session_state.custom_questions = []
+        if "next_qid" not in st.session_state:
+            st.session_state.next_qid = 1
+        if not is_disabled and st.button("➕ 질문 추가"):
+            # st.rerun()을 호출하지 않습니다. 호출하면 기존 질문 위젯이 그려지기 전에
+            # 새로고침되어 객관식 보기 등 입력값이 사라집니다. 같은 실행 안에서 바로 렌더됩니다.
+            st.session_state.custom_questions.append({"id": st.session_state.next_qid})
+            st.session_state.next_qid += 1
+
+        QTYPES = ["직접 기입", "동의여부", "객관식"]
+        remove_id = None
+        for q in st.session_state.custom_questions:
+            qid = q["id"]
+            with st.container(border=True):   # 질문을 카드로 묶어 다른 질문과 구분
+                c1, c2, c3 = st.columns([5, 3, 1])
+                c1.text_input("질문", key=f"cq_label_{qid}", disabled=is_disabled, placeholder="예: 수영 가능 여부")
+                qtype = c2.selectbox("형식", QTYPES, key=f"cq_type_{qid}", disabled=is_disabled)
+                if not is_disabled and c3.button("🗑", key=f"cq_del_{qid}"):
+                    remove_id = qid
+                if qtype == "동의여부":
+                    st.caption("　↳ 학부모 화면의 '동의가 필요한 항목'에 추가됩니다.")
+                elif qtype == "객관식":
+                    ids_key = f"opt_ids_{qid}"
+                    if ids_key not in st.session_state:
+                        st.session_state[ids_key] = [1, 2]   # 기본 선택지 2개
+                    if f"next_oid_{qid}" not in st.session_state:
+                        st.session_state[f"next_oid_{qid}"] = max(st.session_state[ids_key], default=0) + 1
+                    st.caption("　└ 선택지")
+                    oids = st.session_state[ids_key]
+                    remove_oid = None
+                    for k, oid in enumerate(oids):
+                        _sp, ocol, dcol = st.columns([1, 7, 1])   # 왼쪽 빈칸 = 들여쓰기
+                        ocol.text_input("선택지", key=f"cq_opt_{qid}_{oid}", disabled=is_disabled,
+                                        placeholder=f"선택지 {k + 1}", label_visibility="collapsed")
+                        if not is_disabled and len(oids) > 1 and dcol.button("🗑", key=f"opt_del_{qid}_{oid}"):
+                            remove_oid = oid
+                    if remove_oid is not None:
+                        st.session_state[ids_key] = [o for o in oids if o != remove_oid]
+                    _sp2, addcol = st.columns([1, 7])
+                    if not is_disabled and addcol.button("➕ 선택지 추가", key=f"add_opt_{qid}", type="tertiary"):
+                        st.session_state[ids_key].append(st.session_state[f"next_oid_{qid}"])
+                        st.session_state[f"next_oid_{qid}"] += 1
+        if remove_id is not None:
+            st.session_state.custom_questions = [
+                qq for qq in st.session_state.custom_questions if qq["id"] != remove_id
+            ]
+            st.rerun()
+
+        # 작성된 질문(라벨이 있는 것만)을 정의로 모읍니다.
+        custom_questions_defs = []
+        for q in st.session_state.custom_questions:
+            qid = q["id"]
+            lbl = st.session_state.get(f"cq_label_{qid}", "").strip()
+            if not lbl:
+                continue
+            qtype = st.session_state.get(f"cq_type_{qid}", "직접 기입")
+            opts_list = []
+            if qtype == "객관식":
+                oids = st.session_state.get(f"opt_ids_{qid}", [])
+                opts_list = [st.session_state.get(f"cq_opt_{qid}_{oid}", "").strip() for oid in oids]
+                opts_list = [o for o in opts_list if o]
+            custom_questions_defs.append({"label": lbl, "type": qtype, "options": opts_list})
+        custom_labels = [q["label"] for q in custom_questions_defs]
+
+        # 상황별 자동 경고/권고
+        is_water = any(k in all_info_text for k in ["바다", "해변", "해수욕", "물놀이", "수영", "계곡", "갯벌", "항", "섬"])
+        is_overnight = any(k in all_info_text for k in ["1박", "2박", "캠프", "캠핑", "숙박", "야영", "수련"])
+        if is_water:
+            st.warning("🌊 수상·물놀이 활동으로 보입니다 → '응급의료 처치 위임 동의'와 안전 항목(예: 수영 가능 여부)을 권장합니다.")
+        if is_overnight:
+            st.warning("🏕️ 숙박 활동으로 보입니다 → '복용 중인 약', '비상 연락처', '응급의료 처치 위임 동의'를 권장합니다.")
+        if "child_ssn" in selected_ids and "third_party" not in selected_ids:
+            st.warning("📑 주민등록번호는 보통 보험사 등에 제공됩니다 → '개인정보 제3자 제공 동의'도 함께 받으세요.")
+        sensitive_picked = [FIELDS_BY_ID[i]["label"] for i in selected_ids if i in SENSITIVE_IDS]
+        if sensitive_picked:
+            st.warning(
+                "🔒 민감정보(" + ", ".join(sensitive_picked) + ") 수집 → 본문에 수집 목적을 명시해야 합니다. "
+                "(아래 '수집·이용 목적'에 직접 적어주세요. 정식 버전에서는 암호화 보관 필요)"
+            )
+
+        # 항목마다 '수집·이용 목적'과 '보유 기간'을 지정 → AI가 그대로 사용
+        def _pick(label, options, key):
+            """드롭다운 + '기타' 직접 입력을 한 번에 처리"""
+            choice = st.selectbox(label, options + ["기타(직접 입력)"], key=key, disabled=is_disabled)
+            if choice == "기타(직접 입력)":
+                return st.text_input(f"　└ {label} 직접 입력", key=f"{key}_etc", disabled=is_disabled).strip()
+            return choice
+
+        collection_details = []   # 하단 고정 표(수집 항목/목적/보유기간)에 들어갈 내역
+        if selected_labels or custom_labels:
+            st.markdown("**📌 각 항목의 수집·이용 목적** (보유 기간은 관련 법령 기준으로 자동 적용)")
+            for lbl in selected_labels:
+                fid = LABEL_TO_ID[lbl]
+                ret = RETENTION_DEFAULTS.get(fid, DEFAULT_RETENTION)
+                pval = _pick(f"· {lbl} 수집·이용 목적", PURPOSE_OPTIONS.get(fid, []), f"purpose_{fid}")
+                st.caption(f"　└ 보유기간(자동): {ret}")
+                collection_details.append({"item": lbl, "purpose": pval or "-", "retention": ret})
+            for i, lbl in enumerate(custom_labels):
+                pval = st.text_input(f"· {lbl} 수집·이용 목적", key=f"purpose_custom_{i}", disabled=is_disabled).strip()
+                st.caption(f"　└ 보유기간(자동): {DEFAULT_RETENTION}")
+                collection_details.append({"item": lbl, "purpose": pval or "-", "retention": DEFAULT_RETENTION})
+
+        st.markdown("---")
+        st.write("### 🤖 3. AI 안내문 본문 생성")
+        st.caption("초안을 만들면 아래 '학부모 시안'에 바로 반영됩니다. 본문은 시안에서 직접 수정하세요.")
+
+        if st.button("🪄 AI 안내문 초안 자동 생성하기"):
+            with st.spinner("Gemini AI가 멋진 가정통신문을 작성하고 있습니다..."):
+                st.session_state.ai_generated_desc = generate_announcement_with_ai(title, info_items_data)
+                st.rerun()
+
+    with tab2:
+        if True:
+            st.markdown("---")
+            st.markdown("### 📱 학부모 시안 (본문 여기서 바로 수정 가능)")
+            st.markdown('<div class="preview-container">', unsafe_allow_html=True)
+            st.markdown(f"### 🌲 {title}")
+            st.caption("보목지역아동센터 가정통신문")
+            if issue_str:
+                st.caption(f"📅 발행일: {issue_str}")
+            desc = st.text_area("✏️ 상세 안내 문구 (여기서 수정)", value=st.session_state.ai_generated_desc, height=250)
+            st.session_state.ai_generated_desc = desc
+            st.caption("👁 아래는 학부모 화면에서 실제로 보이는 모습입니다 (줄바꿈·레이아웃 확인용)")
+            st.info(desc)
+            st.markdown("##### 📋 학부모가 입력하게 될 항목")
+            # 교사가 선택한 항목 그대로 미리보기에 표시 (동의형은 일괄 동의로 모음)
+            pv_consent_items = []
+            for fid in selected_ids:
+                f = FIELDS_BY_ID.get(fid)
+                if not f:
+                    continue
+                lbl = f["label"]
+                if f["type"] == "consent":
+                    pv_consent_items.append(lbl)
+                elif fid in ("guardian_phone", "emergency"):
+                    _input_phone(lbl, f"pv_{fid}", disabled=True)
+                elif fid == "child_gender":
+                    st.radio(lbl, ["남", "여"], key=f"pv_{fid}", horizontal=True, index=None, disabled=True)
+                elif fid == "child_birth":
+                    _input_birth(lbl, f"pv_{fid}", disabled=True)
+                elif fid == "child_ssn":
+                    _input_ssn(lbl, f"pv_{fid}", disabled=True)
+                elif fid == "school":
+                    _input_school(lbl, f"pv_{fid}", disabled=True)
+                elif fid == "bank_account":
+                    _input_bank(lbl, f"pv_{fid}", disabled=True)
+                else:
+                    tag = " (마스킹 저장)" if f["type"] == "account" else ""
+                    st.text_input(f"[학부모 화면 예시] {lbl}{tag}",
+                                  placeholder=f.get("ph", ""), disabled=True, key=f"pv_{fid}")
+            for i, q in enumerate(custom_questions_defs):
+                lbl = q["label"]
+                if q["type"] == "동의여부":
+                    pv_consent_items.append(lbl)   # 일괄 동의 목록으로 모음
+                elif q["type"] == "객관식":
+                    opts = q.get("options", [])
+                    if isinstance(opts, str):
+                        opts = [o.strip() for o in opts.split(",") if o.strip()]
+                    opts = opts or ["(선택지 미입력)"]
+                    st.radio(f"[학부모 화면 예시] {lbl}", opts, disabled=True, key=f"pv_custom_{i}")
+                else:
+                    st.text_input(f"[학부모 화면 예시] {lbl} (직접 추가)", disabled=True, key=f"pv_custom_{i}")
+            st.markdown("##### ⚖️ 법적 고지 및 개인정보 수집 동의")
+            st.caption("본 동의서의 전자서명은 친필 서명과 동일한 법적 효력을 가집니다.")
+            if pv_consent_items:
+                st.markdown("**동의가 필요한 항목**")
+                for item in pv_consent_items:
+                    st.markdown(f"- {item}")
+            if collection_details:
+                st.markdown("**📑 개인정보 수집·이용 내역**")
+                if issue_str:
+                    st.caption(f"📅 발행일(보유기간 기산일): {issue_str}")
+                st.table([
+                    {"수집 항목": c["item"], "이용 목적": c["purpose"], "보유 기간": c["retention"]}
+                    for c in collection_details
+                ])
+            st.info(LEGAL_NOTICE)
+            st.checkbox("[학부모 화면 예시] 위 내용을 모두 확인하였으며, 위에 입력한 개인정보 수집 및 위 모든 항목에 동의합니다.", disabled=True, key="p_agree")
+            st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown("---")
+        
+            if st.button("🚀 시안 확정 및 발송 링크 생성"):
+                # 확정한 안내문을 시트에 발행 → 학부모 화면이 읽어가게 함
+                ok, err = publish_announcement({
+                    "title": title, "desc": desc, "is_outdoor": is_outdoor,
+                    "issue_date": issue_str,
+                    "fields": ",".join(selected_ids),
+                    "custom_fields": json.dumps(custom_questions_defs, ensure_ascii=False),
+                    "collection": json.dumps(collection_details, ensure_ascii=False),
+                })
+                st.session_state.publish_error = None if ok else err
+                st.session_state.generated = True
+                st.balloons()
+                st.rerun()
+
+    with tab3:
+        if st.session_state.get("generated", False):
+            st.markdown("---")
+            if st.session_state.get("publish_error"):
+                st.warning(
+                    "⚠️ 안내문이 학부모 화면에 안 보일 수 있어요(시트 저장 실패): "
+                    f"{st.session_state.publish_error}"
+                )
+            else:
+                st.success("📨 작성하신 안내문이 학부모 화면으로 발행되었습니다.")
+            st.success("🎉 최종 시안 확인 완료! 학부모 전용 링크 시스템이 활성화되었습니다.")
+            st.markdown("### 📱 학부모 발송용 카카오톡 주소")
+        
+            parent_link = "https://bomok-sign-app-hpapp9ikgcxqthmdv6wlgp4.streamlit.app/?mode=parent"
+        
+            st.info("💡 아래 상자 오른쪽 끝의 복사 버튼을 누른 뒤, 카카오톡에 전송해 보세요!")
+            st.code(parent_link, language="text")
+        
+            if st.button("🆕 새 가정통신문 작성하기"):
+                st.session_state.generated = False
+                st.session_state.ai_generated_desc = "위 필수 정보를 입력한 후 버튼을 누르면 AI가 본문을 자동으로 작성합니다."
+                st.rerun()
+
+        # =====================================================================
+        # 📋 제출 현황 확인 — 제출 명단 + 전자서명 이미지 조회
+        # =====================================================================
+        st.markdown("---")
+        st.write("### 📋 제출 현황 확인")
+        st.caption("제출된 동의서와 전자서명을 확인합니다. (나중에 동의 내용·서명을 검증할 때 사용)")
+        if st.button("🔄 제출 명단 불러오기"):
+            st.session_state.show_submissions = True
+        if st.session_state.get("show_submissions"):
+            records = load_submissions()
+            if records is None:
+                st.error("제출 현황을 불러오지 못했습니다. (시트 연결을 확인해 주세요)")
+            elif len(records) == 0:
+                st.info("아직 제출된 동의서가 없습니다.")
+            else:
+                st.success(f"총 {len(records)}건이 제출되었습니다.")
+                for rec in reversed(records):   # 최근 제출이 위로 오도록
+                    child = rec.get("아동 성명", "")
+                    guardian = rec.get("보호자 성명", "")
+                    when = rec.get("제출시각", "")
+                    with st.expander(f"🧾 {when} · {child} (보호자: {guardian})"):
+                        for k, v in rec.items():
+                            if k == "서명이미지" or not str(v).strip():
+                                continue
+                            st.write(f"- **{k}**: {v}")
+                        sig = rec.get("서명이미지", "")
+                        if sig:
+                            try:
+                                st.image(base64.b64decode(sig), caption="전자서명", width=300)
+                            except Exception:
+                                st.caption("⚠️ 서명 이미지를 불러오지 못했습니다.")
+                        else:
+                            st.caption("서명 이미지 없음(구버전 제출)")
+
+        # =====================================================================
+        # 👨‍👩‍👧 참여 대상 관리 + 개별 발송 + 미제출 리마인드
+        # =====================================================================
+        st.markdown("---")
+        st.write("### 👨‍👩‍👧 참여 대상 선택")
+        st.caption("센터 아동을 미리 등록해두고, 이번 프로그램 참여 대상을 골라 체크하세요.")
+
+        # (1) 명단 등록 / 관리
+        with st.expander("➕ 센터 아동 명단 등록 / 관리", expanded=False):
+            with st.form("roster_add", clear_on_submit=True):
+                rc1, rc2, rc3, rc4 = st.columns([3, 2, 3, 3])
+                new_child = rc1.text_input("아동명")
+                new_grade = rc2.selectbox("학년", GRADES)
+                new_guardian = rc3.text_input("보호자명")
+                new_phone = rc4.text_input("전화번호", placeholder="01012345678")
+                if st.form_submit_button("명단에 추가"):
+                    if new_child and new_phone:
+                        ok, err = add_roster_entry(new_child, new_grade, new_guardian, new_phone)
+                        if ok:
+                            st.success(f"'{new_child}' 추가됨")
+                        else:
+                            st.error(f"추가 실패: {err}")
+                    else:
+                        st.warning("아동명과 전화번호는 필수입니다.")
+            _roster = load_roster()
+            if _roster:
+                st.caption(f"등록 인원: {len(_roster)}명")
+                for i, r in enumerate(_roster):
+                    token = r.get("대상ID")
+                    d1, d2 = st.columns([6, 1])
+                    d1.write(f"- {r.get('아동명','')} ({r.get('학년','')}) / {r.get('보호자명','')} / {r.get('전화번호','')}")
+                    if d2.button("🗑", key=f"del_roster_{i}"):
+                        delete_roster_entry(token)
+                        st.rerun()
+
+        # (2) 참여 대상 선택 (퀵 필터 + 체크박스 + 요약)
+        roster = load_roster()
+        if roster is None:
+            st.error("명단을 불러오지 못했습니다. (시트 연결 확인)")
+        elif not roster:
+            st.info("위에서 센터 아동을 먼저 등록해 주세요.")
+        else:
+            # 위 '참여 대상' 그룹과 연동 — 버튼 한 번으로 해당 그룹 자동 체크
+            target_cats = st.session_state.get("target_categories", [])
+            st.caption(f"위에서 정한 참여 대상: **{', '.join(target_cats) if target_cats else '(미지정)'}**")
+            qc1, qc2 = st.columns(2)
+            if qc1.button("✅ 참여 대상 그룹 자동 체크", use_container_width=True):
+                for r in roster:
+                    g = str(r.get("학년", ""))
+                    if grade_category(g) in target_cats or g in target_cats:
+                        st.session_state[f"sel_{str(r.get('대상ID'))}"] = True
+                st.rerun()
+            if qc2.button("전체 해제", key="quick_clear", use_container_width=True):
+                for r in roster:
+                    st.session_state[f"sel_{str(r.get('대상ID'))}"] = False
+                st.rerun()
+
+            # 제출 명단과 자동 대조 (아동 이름 / 보호자 번호 기준)
+            subs = load_submissions() or []
+            sub_names = {str(s.get("아동 성명", "")).strip() for s in subs if str(s.get("아동 성명", "")).strip()}
+            sub_phones = {"".join(ch for ch in str(s.get("보호자 연락처", "")) if ch.isdigit()) for s in subs}
+            sub_phones.discard("")
+
+            def _submitted(r):
+                nm = str(r.get("아동명", "")).strip()
+                ph = "".join(ch for ch in str(r.get("전화번호", "")) if ch.isdigit())
+                return bool((nm and nm in sub_names) or (ph and ph in sub_phones))
+
+            # 아동 명단 (체크박스 + 제출 여부)
+            st.markdown("**▢ 아동 명단 선택**")
             for r in roster:
-                g = str(r.get("학년", ""))
-                if grade_category(g) in target_cats or g in target_cats:
-                    st.session_state[f"sel_{str(r.get('대상ID'))}"] = True
-            st.rerun()
-        if qc2.button("전체 해제", key="quick_clear", use_container_width=True):
-            for r in roster:
-                st.session_state[f"sel_{str(r.get('대상ID'))}"] = False
-            st.rerun()
+                token = str(r.get("대상ID"))
+                name = r.get("아동명", "")
+                grade = r.get("학년", "")
+                guardian = r.get("보호자명", "")
+                phone = mask_phone(r.get("전화번호", ""))
+                mark = "✅" if _submitted(r) else "⏳"
+                st.checkbox(f"{mark} {name} ({grade}) ─ 보호자: {guardian} ({phone})", key=f"sel_{token}")
 
-        # 제출 명단과 자동 대조 (아동 이름 / 보호자 번호 기준)
-        subs = load_submissions() or []
-        sub_names = {str(s.get("아동 성명", "")).strip() for s in subs if str(s.get("아동 성명", "")).strip()}
-        sub_phones = {"".join(ch for ch in str(s.get("보호자 연락처", "")) if ch.isdigit()) for s in subs}
-        sub_phones.discard("")
-
-        def _submitted(r):
-            nm = str(r.get("아동명", "")).strip()
-            ph = "".join(ch for ch in str(r.get("전화번호", "")) if ch.isdigit())
-            return bool((nm and nm in sub_names) or (ph and ph in sub_phones))
-
-        # 아동 명단 (체크박스 + 제출 여부)
-        st.markdown("**▢ 아동 명단 선택**")
-        for r in roster:
-            token = str(r.get("대상ID"))
-            name = r.get("아동명", "")
-            grade = r.get("학년", "")
-            guardian = r.get("보호자명", "")
-            phone = mask_phone(r.get("전화번호", ""))
-            mark = "✅" if _submitted(r) else "⏳"
-            st.checkbox(f"{mark} {name} ({grade}) ─ 보호자: {guardian} ({phone})", key=f"sel_{token}")
-
-        # 선택 정보 요약 + 제출 현황(선택 대상 기준)
-        selected = [r for r in roster if st.session_state.get(f"sel_{str(r.get('대상ID'))}")]
-        st.session_state["selected_tokens"] = [str(r.get("대상ID")) for r in selected]
-        done = [r for r in selected if _submitted(r)]
-        pending = [r for r in selected if not _submitted(r)]
-        st.success(
-            f"📋 총 {len(roster)}명 중 **{len(selected)}명 선택** · "
-            f"✅ 제출 {len(done)} / ⏳ 미제출 {len(pending)}"
-        )
-        if pending:
-            st.markdown("**⏳ 미제출 명단 (선택 대상 중)** — 이 아동들에게 다시 안내하세요")
-            st.write("  ·  ".join(f"{r.get('아동명','')}({r.get('학년','')})" for r in pending))
-        if st.button("🔄 제출 현황 새로고침"):
-            st.rerun()
+            # 선택 정보 요약 + 제출 현황(선택 대상 기준)
+            selected = [r for r in roster if st.session_state.get(f"sel_{str(r.get('대상ID'))}")]
+            st.session_state["selected_tokens"] = [str(r.get("대상ID")) for r in selected]
+            done = [r for r in selected if _submitted(r)]
+            pending = [r for r in selected if not _submitted(r)]
+            st.success(
+                f"📋 총 {len(roster)}명 중 **{len(selected)}명 선택** · "
+                f"✅ 제출 {len(done)} / ⏳ 미제출 {len(pending)}"
+            )
+            if pending:
+                st.markdown("**⏳ 미제출 명단 (선택 대상 중)** — 이 아동들에게 다시 안내하세요")
+                st.write("  ·  ".join(f"{r.get('아동명','')}({r.get('학년','')})" for r in pending))
+            if st.button("🔄 제출 현황 새로고침"):
+                st.rerun()
