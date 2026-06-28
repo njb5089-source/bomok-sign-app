@@ -589,6 +589,8 @@ FLOAT_BTN_JS = """
   prev.onclick=function(){ var t=tabBtns(), i=activeIdx(); if(i>0){ t[i-1].click(); toTop(); } };
   var next=mkBtn('floatNext','›','right:6px;top:50%;transform:translateY(-50%);');
   next.onclick=function(){ var t=tabBtns(), i=activeIdx(); if(i<t.length-1){ t[i+1].click(); toTop(); } };
+  // 탭을 직접 클릭해도 항상 맨 위에서 시작
+  tabBtns().forEach(function(b){ if(!b.dataset.tt){ b.dataset.tt='1'; b.addEventListener('click', function(){ setTimeout(toTop, 60); }); } });
 })();
 </script>
 """
@@ -613,14 +615,23 @@ def link_copy_widget(url):
 
 
 def goto_tab_js(step):
-    """JS로 지정한 단계 탭(1·2·3)으로 자동 전환합니다."""
+    """JS로 지정한 단계 탭(1·2·3)으로 자동 전환하고 맨 위로 스크롤합니다."""
     idx = int(step) - 1
-    js = (
-        "<script>setTimeout(function(){"
-        "var t=window.parent.document.querySelectorAll('[data-testid=\"stTabs\"] button[role=\"tab\"]');"
-        f"if(t[{idx}]) t[{idx}].click();"
-        "}, 150);</script>"
-    )
+    js = """
+<script>
+setTimeout(function(){
+  var d = window.parent.document;
+  var t = d.querySelectorAll('[data-testid="stTabs"] button[role="tab"]');
+  if (t[IDX]) {
+    t[IDX].click();
+    setTimeout(function(){
+      try { (d.querySelector('section.main')||d.querySelector('[data-testid="stMain"]')||d.scrollingElement).scrollTo({top:0,behavior:'smooth'}); } catch(e){}
+      try { window.parent.scrollTo({top:0,behavior:'smooth'}); } catch(e){}
+    }, 90);
+  }
+}, 150);
+</script>
+""".replace("IDX", str(idx))
     components.html(js, height=0)
 
 
