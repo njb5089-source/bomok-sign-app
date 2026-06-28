@@ -396,49 +396,87 @@ def sms_link(phone):
     return f"sms:{digits}"
 
 
+ANNOUNCE_HEADER = ["id", "title", "desc", "is_outdoor", "issue_date", "fields", "custom_fields", "collection"]
+
+
+def _parse_announcement(rec):
+    """발송안내문 한 행(dict)을 화면에서 쓰기 좋은 형태로 가공합니다."""
+    rec["is_outdoor"] = (str(rec.get("is_outdoor", "")).strip().upper() == "Y")
+    rec["field_ids"] = [x for x in str(rec.get("fields", "")).split(",") if x]
+    try:
+        cq = json.loads(rec.get("custom_fields", "") or "[]")
+        rec["custom_questions"] = cq if isinstance(cq, list) else []
+    except Exception:
+        rec["custom_questions"] = []
+    try:
+        cd = json.loads(rec.get("collection", "") or "[]")
+        rec["collection"] = cd if isinstance(cd, list) else []
+    except Exception:
+        rec["collection"] = []
+    return rec
+
+
 def publish_announcement(data):
-    """교사가 확정한 안내문을 '발송안내문' 탭에 저장합니다. 학부모 화면이 이걸 읽어갑니다."""
+    """확정한 안내문을 '발송안내문' 탭에 새 행으로 추가합니다(여러 개 공존). 고유 id 포함."""
     try:
         sh = _open_spreadsheet()
         try:
             ws = sh.worksheet("발송안내문")
         except gspread.WorksheetNotFound:
-            ws = sh.add_worksheet(title="발송안내문", rows=10, cols=10)
-        ws.clear()
-        ws.append_row(["title", "desc", "is_outdoor", "issue_date", "fields", "custom_fields", "collection"])
+            ws = sh.add_worksheet(title="발송안내문", rows=300, cols=len(ANNOUNCE_HEADER))
+        existing = ws.get_all_values()
+        if not existing or existing[0] != ANNOUNCE_HEADER:
+            ws.clear()
+            ws.append_row(ANNOUNCE_HEADER)
         ws.append_row([
-            data["title"], data["desc"], "Y" if data["is_outdoor"] else "N",
-            data.get("issue_date", ""),
-            data.get("fields", ""), data.get("custom_fields", ""), data.get("collection", ""),
+            data["id"], data["title"], data["desc"], "Y" if data["is_outdoor"] else "N",
+            data.get("issue_date", ""), data.get("fields", ""),
+            data.get("custom_fields", ""), data.get("collection", ""),
         ])
         return True, None
     except Exception as e:
         return False, str(e)
 
 
-def load_announcement():
-    """'발송안내문' 탭에서 가장 최근에 확정된 안내문을 불러옵니다. 없으면 None."""
+def load_announcement(aid=None):
+    """발송안내문에서 id로 안내문을 불러옵니다. id가 없으면 가장 최근에 발행한 것."""
     try:
-        ws = _open_spreadsheet().worksheet("발송안내문")
-        records = ws.get_all_records()
-        if records:
-            rec = records[0]
-            rec["is_outdoor"] = (str(rec.get("is_outdoor", "")).strip().upper() == "Y")
-            rec["field_ids"] = [x for x in str(rec.get("fields", "")).split(",") if x]
-            try:
-                cq = json.loads(rec.get("custom_fields", "") or "[]")
-                rec["custom_questions"] = cq if isinstance(cq, list) else []
-            except Exception:
-                rec["custom_questions"] = []
-            try:
-                cd = json.loads(rec.get("collection", "") or "[]")
-                rec["collection"] = cd if isinstance(cd, list) else []
-            except Exception:
-                rec["collection"] = []
-            return rec
-        return None
+        records = _open_spreadsheet().worksheet("발송안내문").get_all_records()
+        if not records:
+            return None
+        if aid:
+            for rec in records:
+                if str(rec.get("id")) == str(aid):
+                    return _parse_announcement(rec)
+            return None
+        return _parse_announcement(records[-1])   # 가장 최근(마지막) 행
     except Exception:
         return None
+
+
+def load_all_announcements():
+    """발송한 모든 안내문을 최근순으로 반환합니다. (실패 시 None)"""
+    try:
+        records = _open_spreadsheet().worksheet("발송안내문").get_all_records()
+        return [_parse_announcement(r) for r in reversed(records)]
+    except Exception:
+        return None
+
+
+def delete_announcement(aid):
+    """id로 발송안내문에서 한 안내문을 삭제합니다."""
+    try:
+        ws = _open_spreadsheet().worksheet("발송안내문")
+        vals = ws.get_all_values()
+        for idx, row in enumerate(vals):
+            if idx == 0:
+                continue
+            if row and str(row[0]) == str(aid):
+                ws.delete_rows(idx + 1)
+                break
+        return True, None
+    except Exception as e:
+        return False, str(e)
 
 
 # =====================================================================
@@ -507,7 +545,7 @@ RETENTION_DEFAULTS = {
 
 # 제출현황 시트의 고정 머리글: 모든 항목을 각각의 열로 둠(안 받은 항목은 빈칸)
 SUBMISSION_HEADER = (
-    ["제출시각", "안내문 제목"]
+    ["제출시각", "안내문 제목", "안내문ID"]
     + [f["label"] for f in PRIVACY_FIELDS]
     + ["기타 입력 항목", "동의 여부", "서명", "서명이미지"]
 )
@@ -593,7 +631,7 @@ st.markdown("""
 # =====================================================================
 if current_user_mode == "parent":
     # 교사가 확정·발송한 안내문을 구글 시트에서 불러옵니다.
-    announcement = load_announcement()
+    announcement = load_announcement(query_params.get("id"))
 
     # ♿ 접근성: 번역(다문화 학부모) + 크게보기(고령 학부모)
     ac1, ac2 = st.columns([3, 2])
@@ -749,6 +787,7 @@ if current_user_mode == "parent":
                 row = [
                     datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     announcement["title"] if announcement else "(안내문 없음)",
+                    str(announcement.get("id", "")) if announcement else "",
                 ]
                 row += [collected.get(f["label"], "") for f in PRIVACY_FIELDS]
                 row += [custom_str, "동의함", "서명 완료", sig_b64]
@@ -1062,15 +1101,17 @@ else:
             st.markdown("---")
         
             if st.button("🚀 시안 확정 및 발송 링크 생성"):
-                # 확정한 안내문을 시트에 발행 → 학부모 화면이 읽어가게 함
+                # 확정한 안내문을 새 id로 발행 → 여러 안내문이 공존
+                new_aid = "A" + datetime.datetime.now().strftime("%y%m%d%H%M%S")
                 ok, err = publish_announcement({
-                    "title": title, "desc": desc, "is_outdoor": is_outdoor,
+                    "id": new_aid, "title": title, "desc": desc, "is_outdoor": is_outdoor,
                     "issue_date": issue_str,
                     "fields": ",".join(selected_ids),
                     "custom_fields": json.dumps(custom_questions_defs, ensure_ascii=False),
                     "collection": json.dumps(collection_details, ensure_ascii=False),
                 })
                 st.session_state.publish_error = None if ok else err
+                st.session_state.published_id = new_aid if ok else ""
                 st.session_state.generated = True
                 st.balloons()
                 st.rerun()
@@ -1085,18 +1126,42 @@ else:
                 )
             else:
                 st.success("📨 작성하신 안내문이 학부모 화면으로 발행되었습니다.")
-            st.success("🎉 최종 시안 확인 완료! 학부모 전용 링크 시스템이 활성화되었습니다.")
+            st.success("🎉 최종 시안 확인 완료! 이 안내문 전용 링크가 생성됐습니다.")
             st.markdown("### 📱 학부모 발송용 카카오톡 주소")
-        
-            parent_link = "https://bomok-sign-app-hpapp9ikgcxqthmdv6wlgp4.streamlit.app/?mode=parent"
-        
+
+            parent_link = PARENT_BASE + "&id=" + str(st.session_state.get("published_id", ""))
+
             st.info("💡 아래 상자 오른쪽 끝의 복사 버튼을 누른 뒤, 카카오톡에 전송해 보세요!")
             st.code(parent_link, language="text")
-        
+
             if st.button("🆕 새 가정통신문 작성하기"):
                 st.session_state.generated = False
                 st.session_state.ai_generated_desc = "위 필수 정보를 입력한 후 버튼을 누르면 AI가 본문을 자동으로 작성합니다."
                 st.rerun()
+
+        # =====================================================================
+        # 📑 발행한 안내문 목록 (여러 안내문 관리)
+        # =====================================================================
+        st.markdown("---")
+        st.write("### 📑 발행한 안내문 목록")
+        st.caption("발행한 안내문마다 전용 링크와 제출 수가 표시됩니다. 안내문별로 따로 관리됩니다.")
+        _anns = load_all_announcements()
+        _subs = load_submissions() or []
+        if _anns is None:
+            st.error("안내문 목록을 불러오지 못했습니다. (시트 연결 확인)")
+        elif not _anns:
+            st.info("아직 발행한 안내문이 없습니다. '시안 확인·수정' 탭에서 확정·발송하세요.")
+        else:
+            for a in _anns:
+                aid = str(a.get("id", ""))
+                cnt = sum(1 for s in _subs if str(s.get("안내문ID")) == aid)
+                with st.container(border=True):
+                    st.markdown(f"**🌲 {a.get('title','(제목 없음)')}**  ·  발행일 {a.get('issue_date','')}")
+                    st.caption(f"📥 제출 {cnt}건")
+                    st.code(PARENT_BASE + "&id=" + aid, language="text")
+                    if st.button("🗑 이 안내문 삭제", key=f"del_ann_{aid}"):
+                        delete_announcement(aid)
+                        st.rerun()
 
         # =====================================================================
         # 📋 제출 현황 확인 — 제출 명단 + 전자서명 이미지 조회
